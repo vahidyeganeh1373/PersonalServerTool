@@ -413,7 +413,7 @@ function main_menu() {
     echo -e "\033[1;35m       Server Tools Menu       \033[0m"
     echo -e "\033[1;35m        Version : $VERSION       \033[0m"
     echo "==============================="
-    echo -e "\033[1;35m        Your IP : \033[1;34m$SERVER_IP\033[0m"
+    echo -e "\033[1;34m        $SERVER_IP       \033[0m"
     echo "==============================="
     echo "1) Setup Firewall 🔥"
     echo "2) Install BBR 🚀"
