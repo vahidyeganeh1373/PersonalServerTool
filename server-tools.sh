@@ -392,7 +392,7 @@ EOF
         break
         ;;
       *)
-        echo "Invalid option! Please try again."
+        echo -e "\033[1;31mInvalid option\033[0m"
         sleep 1
         ;;
     esac
