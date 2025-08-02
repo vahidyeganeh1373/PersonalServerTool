@@ -409,10 +409,10 @@ function lena_tunnel() {
 function main_menu() {
   while true; do
     clear
-    echo "==============================="
-    echo "       Server Tools Menu       "
-    echo "        Version : $VERSION       "
-    echo "==============================="
+    echo -e "\033[1;35m===============================\033[0m"
+    echo -e "\033[1;35m       Server Tools Menu       \033[0m"
+    echo -e "\033[1;35m        Version : $VERSION       \033[0m"
+    echo -e "\033[1;35m===============================\033[0m"
     echo "1) Setup Firewall 🔥"
     echo "2) Install BBR 🚀"
     echo "3) Optimize Network 🚀"
@@ -436,8 +436,8 @@ function main_menu() {
       7) Backhual ;;
       8) GostMenu ;;
       9) lena_tunnel ;;
-      0) echo -e "\033[1;34mExiting...!\033[0m"; exit 0 ;;
-      *) echo -e "\033[1;31mInvalid option!\033[0m"; sleep 1 ;;
+      0) echo -e "\033[1;34mExiting...\033[0m"; exit 0 ;;
+      *) echo -e "\033[1;31mInvalid option\033[0m"; sleep 1 ;;
     esac
   done
 }
