@@ -1,4 +1,6 @@
 #!/bin/bash
+VERSION="1.0.0"
+echo "Personal Server Tool - Version $VERSION"
 
 set -e
 
@@ -409,6 +411,7 @@ function main_menu() {
     clear
     echo "==============================="
     echo "       Server Tools Menu       "
+    echo "       Version: $VERSION       "
     echo "==============================="
     echo "1) Setup Firewall 🔥"
     echo "2) Install BBR 🚀"
