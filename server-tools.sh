@@ -409,10 +409,10 @@ function lena_tunnel() {
 function main_menu() {
   while true; do
     clear
-    echo -e "\033[1;35m===============================\033[0m"
+    echo "==============================="
     echo -e "\033[1;35m       Server Tools Menu       \033[0m"
     echo -e "\033[1;35m        Version : $VERSION       \033[0m"
-    echo -e "\033[1;35m===============================\033[0m"
+    echo "==============================="
     echo "1) Setup Firewall 🔥"
     echo "2) Install BBR 🚀"
     echo "3) Optimize Network 🚀"
