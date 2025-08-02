@@ -437,7 +437,7 @@ function main_menu() {
       8) GostMenu ;;
       9) lena_tunnel ;;
       0) echo -e "\033[1;34mExiting...!\033[0m"; exit 0 ;;
-      *) echo -e "\033[31mInvalid option!\033[0m"; sleep 1 ;;
+      *) echo -e "\033[1;31mInvalid option!\033[0m"; sleep 1 ;;
     esac
   done
 }
