@@ -321,8 +321,8 @@ function GostMenu() {
         rm -f /root/gost_3.2.1-nightly.20250730_linux_amd64.tar.gz
         echo "[✓] Files installed. Editing service file..."
         echo "Select your region:"
-        echo "1. Iran 🇮🇷"
-        echo "2. Kharej 🌍"
+        echo "1. Iran"
+        echo "2. Kharej"
         echo "3. Just Update Core"
         read -p "Enter choice [1-3]: " region_choice
 
@@ -411,7 +411,7 @@ function main_menu() {
     clear
     echo "==============================="
     echo "       Server Tools Menu       "
-    echo "       Version: $VERSION       "
+    echo "        Version : $VERSION       "
     echo "==============================="
     echo "1) Setup Firewall 🔥"
     echo "2) Install BBR 🚀"
@@ -437,7 +437,7 @@ function main_menu() {
       8) GostMenu ;;
       9) lena_tunnel ;;
       0) echo "Exiting..."; exit 0 ;;
-      *) echo "Invalid option!"; sleep 1 ;;
+      *) echo -e "\033[1;34mInvalid option!\033[0m"; sleep 1 ;;
     esac
   done
 }
