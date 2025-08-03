@@ -48,7 +48,6 @@ function setup_firewall() {
   echo "y" | sudo ufw enable
   echo ""
   echo -e "\033[1;34m[✓] Successfully\033[0m"
-  echo ""
   read -n 1 -s -r -p $'\033[1;35m\nPress any key to return\033[0m'
 }
 
@@ -61,9 +60,6 @@ function install_bbr() {
   bash bbr.sh
   read -n 1 -s -r -p $'\033[1;35m\nPress any key to return\033[0m'
   rm -f /root/install_bbr.log /root/bbr.sh
-  echo ""
-  echo -e "\033[1;34m[✓] Successfully\033[0m"
-  echo ""
 }
 
 function optimize_network() {
@@ -92,13 +88,11 @@ function optimize_network() {
 
   # Show active settings
   echo ""
-  echo "[✓] Keepalive time: $(sysctl -n net.ipv4.tcp_keepalive_time)"
-  echo "[✓] Keepalive interval: $(sysctl -n net.ipv4.tcp_keepalive_intvl)"
-  echo "[✓] Keepalive probes: $(sysctl -n net.ipv4.tcp_keepalive_probes)"
-
+  echo -e "\033[1;33m[✓] Keepalive time: $(sysctl -n net.ipv4.tcp_keepalive_time)\033[0m"
+  echo -e "\033[1;33m[✓] Keepalive interval: $(sysctl -n net.ipv4.tcp_keepalive_intvl)\033[0m"
+  echo -e "\033[1;33m[✓] Keepalive probes: $(sysctl -n net.ipv4.tcp_keepalive_probes)\033[0m"
   echo ""
   echo -e "\033[1;34m[✓] Successfully\033[0m"
-  echo ""
   read -n 1 -s -r -p $'\033[1;35m\nPress any key to return\033[0m'
 }
 
