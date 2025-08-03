@@ -7,7 +7,7 @@ set -e
 function setup_firewall() {
 
   echo ""
-  echo -e "\033[1;33m[*] Setting up firewall rules...\033[0m"
+  echo -e "\033[1;33m[*] Setting up...\033[0m"
   echo ""
   
   PORTS=(
@@ -47,22 +47,29 @@ function setup_firewall() {
 
   echo "y" | sudo ufw enable
   echo ""
-  echo -e "\033[1;34m[✓] Firewall enabled successfully.\033[0m"
+  echo -e "\033[1;34m[✓] Successfully\033[0m"
   echo ""
-  read -n 1 -s -r -p $'\nPress any key to return to the menu...'
+  read -n 1 -s -r -p $'\033[1;35m\nPress any key to return\033[0m'
 }
 
 function install_bbr() {
-  echo "[*] Downloading and running BBR installer (teddysun)..."
+  echo ""
+  echo -e "\033[1;33m[*] Setting up...\033[0m"
+  echo ""
   wget -N --no-check-certificate https://github.com/teddysun/across/raw/master/bbr.sh
   chmod +x bbr.sh
   bash bbr.sh
-  read -n 1 -s -r -p $'\nPress any key to return to the menu...'
+  read -n 1 -s -r -p $'\033[1;35m\nPress any key to return\033[0m'
   rm -f /root/install_bbr.log /root/bbr.sh
+  echo ""
+  echo -e "\033[1;34m[✓] Successfully\033[0m"
+  echo ""
 }
 
 function optimize_network() {
-  echo "[*] Applying system TCP keepalive optimizations..."
+  echo ""
+  echo -e "\033[1;33m[*] Setting up...\033[0m"
+  echo ""
 
   # Update or add TCP keepalive settings in /etc/sysctl.conf
   for key in net.ipv4.tcp_keepalive_time net.ipv4.tcp_keepalive_intvl net.ipv4.tcp_keepalive_probes; do
@@ -90,8 +97,9 @@ function optimize_network() {
   echo "[✓] Keepalive probes: $(sysctl -n net.ipv4.tcp_keepalive_probes)"
 
   echo ""
-  echo "[✔] TCP Keepalive optimization completed successfully."
-  read -n 1 -s -r -p $'\nPress any key to return to the menu...'
+  echo -e "\033[1;34m[✓] Successfully\033[0m"
+  echo ""
+  read -n 1 -s -r -p $'\033[1;35m\nPress any key to return\033[0m'
 }
 
 
@@ -113,8 +121,8 @@ function change_ssh_port() {
 }
 
 function change_root_password() {
-  echo "[*] Changing root password to: 1982Gonzoi!@#"
-  echo -e "1982Gonzoi!@#\n1982Gonzoi!@#" | passwd root
+  echo "[*] Changing root password to: Vahid5591"
+  echo -e "1982Gonzoi!@#\nVahid5591" | passwd root
   echo -e "\n\033[1;32m✅ Password changed successfully.\033[0m"
   read -n 1 -s -r -p $'\nPress any key to return to the menu...'
 }
