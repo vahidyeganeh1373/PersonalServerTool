@@ -5,8 +5,11 @@ SERVER_IP=$(hostname -I | awk '{print $1}')
 set -e
 
 function setup_firewall() {
-  echo "[*] Setting up firewall rules..."
 
+  echo ""
+  echo -e "\033[1;33m[*] Setting up firewall rules...\033[0m"
+  echo ""
+  
   PORTS=(
     ssh http https 53/tcp 53/udp 80/tcp 80/udp 2020/tcp 2020/udp
     443/tcp 443/udp 8000/tcp 8000/udp 57160/tcp 57160/udp 5629/tcp 5629/udp
@@ -43,7 +46,9 @@ function setup_firewall() {
   done
 
   echo "y" | sudo ufw enable
-  echo "[✓] Firewall enabled successfully."
+  echo ""
+  echo -e "\033[1;34m[✓] Firewall enabled successfully.\033[0m"
+  echo ""
   read -n 1 -s -r -p $'\nPress any key to return to the menu...'
 }
 
