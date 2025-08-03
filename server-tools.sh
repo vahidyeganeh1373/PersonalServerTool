@@ -98,8 +98,10 @@ function optimize_network() {
 
 
 function change_ssh_port() {
-  echo "[*] Changing SSH port to 57160..."
-
+  echo ""
+  echo -e "\033[1;33m[*] Setting up...\033[0m"
+  echo ""
+  
   if grep -q "^#Port" /etc/ssh/sshd_config; then
     sed -i 's/^#Port .*/Port 57160/' /etc/ssh/sshd_config
   elif grep -q "^Port" /etc/ssh/sshd_config; then
@@ -107,11 +109,13 @@ function change_ssh_port() {
   else
     echo "Port 57160" >> /etc/ssh/sshd_config
   fi
-
-  echo "[✓] SSH port changed. Restarting service..."
+  echo ""
+  echo -e "\033[1;34m[✓] SSH port changed. Restarting service...\033[0m"
+  echo ""
   service sshd restart || service ssh restart
-  echo "[✓] Done. SSH is now running on port 57160."
-  read -n 1 -s -r -p $'\nPress any key to return to the menu...'
+  echo ""
+  echo -e "\033[1;34m[✓] Done. SSH is now running on port 57160\033[0m"
+  read -n 1 -s -r -p $'\033[1;35m\nPress any key to return\033[0m'
 }
 
 function change_root_password() {
