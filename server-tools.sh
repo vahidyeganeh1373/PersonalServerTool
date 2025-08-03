@@ -318,10 +318,12 @@ function GostMenu() {
 
     case $gost_choice in
       1)
-        echo "[*] Check if GOST service is running..."
-        sudo systemctl stop gost
-        sudo systemctl disable gost
-        rm -rf /usr/local/bin/gost
+       echo -e "\033[1;33m[*] Checking if GOST service exists...\033[0m"
+       if systemctl list-unit-files | grep -q gost.service; then
+       sudo systemctl stop gost || true
+       sudo systemctl disable gost || true
+       fi
+       rm -rf /usr/local/bin/gost
 
         echo "[*] Installing GOST..."
         sudo apt install wget nano -y
