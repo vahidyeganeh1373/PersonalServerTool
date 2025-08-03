@@ -109,7 +109,6 @@ function change_ssh_port() {
   else
     echo "Port 57160" >> /etc/ssh/sshd_config
   fi
-  echo ""
   echo -e "\033[1;34m[✓] SSH port changed. Restarting service...\033[0m"
   service sshd restart || service ssh restart
   echo -e "\033[1;34m[✓] SSH is now running on port 57160\033[0m"
@@ -122,7 +121,7 @@ function change_root_password() {
   echo ""
   echo -e "1982Gonzoi!@#\n1982Gonzoi!@#" | passwd root
   echo ""
-  echo -e "\033[1;34m[✓] Successfully\033[0m"
+  echo -e "\033[1;34m[✓] Your new password is "1982Gonzoi!@#"\033[0m"
   read -n 1 -s -r -p $'\033[1;35m\nPress any key to return\033[0m'
 }
 
