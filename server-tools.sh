@@ -111,10 +111,10 @@ function change_ssh_port() {
   fi
   echo ""
   echo -e "\033[1;34m[✓] SSH port changed. Restarting service...\033[0m"
-  echo ""
   service sshd restart || service ssh restart
   echo ""
-  echo -e "\033[1;34m[✓] Done. SSH is now running on port 57160\033[0m"
+  echo -e "\033[1;34m[✓] Done\033[0m"
+  echo -e "\033[1;34m[✓] SSH is now running on port 57160\033[0m"
   read -n 1 -s -r -p $'\033[1;35m\nPress any key to return\033[0m'
 }
 
