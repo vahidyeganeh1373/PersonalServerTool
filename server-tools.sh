@@ -112,17 +112,18 @@ function change_ssh_port() {
   echo ""
   echo -e "\033[1;34m[✓] SSH port changed. Restarting service...\033[0m"
   service sshd restart || service ssh restart
-  echo ""
-  echo -e "\033[1;34m[✓] Done\033[0m"
   echo -e "\033[1;34m[✓] SSH is now running on port 57160\033[0m"
   read -n 1 -s -r -p $'\033[1;35m\nPress any key to return\033[0m'
 }
 
 function change_root_password() {
-  echo "[*] Changing root password to: Vahid5591"
-  echo -e "1982Gonzoi!@#\nVahid5591" | passwd root
-  echo -e "\n\033[1;32m✅ Password changed successfully.\033[0m"
-  read -n 1 -s -r -p $'\nPress any key to return to the menu...'
+  echo ""
+  echo -e "\033[1;33m[*] Changing password...\033[0m"
+  echo ""
+  echo -e "1982Gonzoi!@#\n1982Gonzoi!@#" | passwd root
+  echo ""
+  echo -e "\033[1;34m[✓] Successfully\033[0m"
+  read -n 1 -s -r -p $'\033[1;35m\nPress any key to return\033[0m'
 }
 
 function install_marzban_node() {
