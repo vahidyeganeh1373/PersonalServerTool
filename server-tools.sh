@@ -17,7 +17,7 @@ function setup_firewall() {
     8081/tcp 8081/udp 8082/tcp 8082/udp 2095/tcp 2095/udp 25349/tcp 25349/udp
     10000/tcp 10000/udp 11000/tcp 11000/udp 11100/tcp 11100/udp 11200/tcp 11200/udp
     11300/tcp 11300/udp 11400/tcp 11400/udp 11500/tcp 11500/udp 11600/tcp 11600/udp
-    21653/tcp 21653/udp 21652/tcp 21652/udp
+    21653/tcp 21653/udp 21652/tcp 21652/udp 14848/tcp 14848/udp
     55150/tcp 55150/udp 55151/tcp 55151/udp 55250/tcp 55250/udp
     55251/tcp 55251/udp 55350/tcp 55350/udp 55351/tcp 55351/udp
     55450/tcp 55450/udp 55451/tcp 55451/udp 55550/tcp 55550/udp
@@ -181,7 +181,7 @@ services:
 EOF
 
             mkdir -p /var/lib/marzban/xray-core && cd /var/lib/marzban/xray-core
-            wget https://github.com/XTLS/xray-core/releases/latest/download/Xray-linux-64.zip
+            wget https://github.com/XTLS/Xray-core/releases/download/v25.3.6/Xray-linux-64.zip
             apt install unzip -y
             unzip Xray-linux-64.zip
             rm Xray-linux-64.zip
