@@ -327,11 +327,11 @@ function GostMenu() {
 
         echo "[*] Installing GOST..."
         sudo apt install wget nano -y
-        wget https://github.com/go-gost/gost/releases/download/v3.2.5/gost_3.2.5_linux_amd64.tar.gz
+        wget https://github.com/go-gost/gost/releases/download/v3.2.6/gost_3.2.6_linux_amd64.tar.gz
         mkdir -p /usr/local/bin/gost
-        tar -xvzf gost_3.2.5_linux_amd64.tar.gz -C /usr/local/bin/gost/
+        tar -xvzf gost_3.2.6_linux_amd64.tar.gz -C /usr/local/bin/gost/
         chmod +x /usr/local/bin/gost/
-        rm -f /root/gost_3.2.5_linux_amd64.tar.gz
+        rm -f /root/gost_3.2.6_linux_amd64.tar.gz
         echo "[✓] Files installed. Editing service file..."
         echo "Select your region:"
         echo "1. Iran"
