@@ -67,13 +67,24 @@ function optimize_network() {
   echo -e "\033[1;33m[*] Setting up...\033[0m"
   echo ""
 
-  # Update or add TCP keepalive settings in /etc/sysctl.conf
-  for key in net.ipv4.tcp_keepalive_time net.ipv4.tcp_keepalive_intvl net.ipv4.tcp_keepalive_probes; do
+  keys=(
+    "net.ipv4.tcp_keepalive_time"
+    "net.ipv4.tcp_keepalive_intvl"
+    "net.ipv4.tcp_keepalive_probes"
+    "net.ipv4.tcp_fastopen"
+    "net.ipv4.tcp_slow_start_after_idle"
+    "net.ipv4.tcp_mtu_probing"
+  )
+
+  for key in "${keys[@]}"; do
     value=""
     case $key in
       net.ipv4.tcp_keepalive_time) value=30 ;;
       net.ipv4.tcp_keepalive_intvl) value=10 ;;
       net.ipv4.tcp_keepalive_probes) value=3 ;;
+      net.ipv4.tcp_fastopen) value=3 ;;
+      net.ipv4.tcp_slow_start_after_idle) value=0 ;;
+      net.ipv4.tcp_mtu_probing) value=1 ;;
     esac
 
     if grep -q "^$key" /etc/sysctl.conf; then
@@ -83,16 +94,16 @@ function optimize_network() {
     fi
   done
 
-  # Apply the changes
-  sudo sysctl -p
+  sudo sysctl -p > /dev/null
 
-  # Show active settings
+  echo -e "\033[1;32m--- Active Network Settings ---\033[0m"
+  for key in "${keys[@]}"; do
+    current_val=$(sysctl -n $key)
+    echo -e "\033[1;33m[✓] $key: $current_val\033[0m"
+  done
+
   echo ""
-  echo -e "\033[1;33m[✓] Keepalive time: $(sysctl -n net.ipv4.tcp_keepalive_time)\033[0m"
-  echo -e "\033[1;33m[✓] Keepalive interval: $(sysctl -n net.ipv4.tcp_keepalive_intvl)\033[0m"
-  echo -e "\033[1;33m[✓] Keepalive probes: $(sysctl -n net.ipv4.tcp_keepalive_probes)\033[0m"
-  echo ""
-  echo -e "\033[1;34m[✓] Successfully\033[0m"
+  echo -e "\033[1;34m[✓] All optimizations applied successfully!\033[0m"
   read -n 1 -s -r -p $'\033[1;35m\nPress any key to return\033[0m'
 }
 
