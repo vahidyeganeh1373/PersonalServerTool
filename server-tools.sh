@@ -299,7 +299,7 @@ function main_menu() {
     echo -e "${CYAN}07)${NC} Backhual Tunnel (Premium)"
     echo -e "${CYAN}08)${NC} GOST Tunnel"
     echo -e "${CYAN}09)${NC} Lena Tunnel"
-    echo -e "${CYAN}10)${NC} Auto SSH Tunnel 🔗"
+    echo -e "${CYAN}10)${NC} Auto SSH Tunnel (Just Iran Side)🔗"
     echo -e "${CYAN}11)${NC} Pasarguard Node 🛡️"
     echo -e "${CYAN}00)${NC} Exit ❌"
     echo "-------------------------------"
