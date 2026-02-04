@@ -66,7 +66,7 @@ function auto_ssh_tunnel_menu() {
     echo "==============================="
     echo -e "${PURPLE}       Auto SSH Tunnel        ${NC}"
     echo "==============================="
-    echo "1. Install / ReConfig⬇️"
+    echo "1. Install / ReConfig ⬇️"
     echo "2. Enable / Restart ♻️"
     echo "3. Disable ⛔"
     echo "4. Status 📊"
