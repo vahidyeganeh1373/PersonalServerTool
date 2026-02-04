@@ -1,11 +1,104 @@
 #!/bin/bash
-VERSION="1.0.0"
+VERSION="1.1.0"
 SERVER_IP=$(hostname -I | awk '{print $1}')
+
+# Colors used in your script style
+RED='\033[1;31m'
+GREEN='\033[1;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[1;34m'
+PURPLE='\033[1;35m'
+CYAN='\033[1;36m'
+NC='\033[0m'
 
 set -e
 
-function setup_firewall() {
+# --- New Function: Auto SSH Tunnel ---
+function auto_ssh_tunnel_menu() {
+  while true; do
+    clear
+    echo "==============================="
+    echo -e "${PURPLE}       Auto SSH Tunnel        ${NC}"
+    echo "==============================="
+    echo "1. Install ⬇️"
+    echo "2. Enable / Restart ♻️"
+    echo "3. Disable ⛔"
+    echo "4. Status 📊"
+    echo "5. Return 🔙"
+    echo "-------------------------------"
+    read -p "Select an option [1-5]: " ash_choice
 
+    case $ash_choice in
+      1)
+        echo -e "\n${YELLOW}[*] Setting up AutoSSH Tunnel...${NC}"
+        read -p "Foreign IP: " FOREIGN_IP
+        read -p "Config Port: " CONFIG_PORT
+        
+        apt update && apt install -y autossh
+
+        echo -e "${YELLOW}[*] Creating service file...${NC}"
+        cat <<EOF | sudo tee /etc/systemd/system/ssh-tunnel.service > /dev/null
+[Unit]
+Description=AutoSSH Tunnel
+After=network.target
+
+[Service]
+Environment="AUTOSSH_GATETIME=0"
+ExecStart=/usr/bin/autossh -M 0 -o "ServerAliveInterval 30" -o "ServerAliveCountMax 3" -o "ExitOnForwardFailure=yes" -o "StrictHostKeyChecking=no" -N -L 0.0.0.0:${CONFIG_PORT}:localhost:${CONFIG_PORT} root@${FOREIGN_IP}
+Restart=always
+RestartSec=3
+StandardOutput=null
+StandardError=null
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+        echo -e "${YELLOW}[*] Generating SSH Key (Please follow prompts)...${NC}"
+        ssh-keygen -t rsa
+        
+        echo -e "${YELLOW}[*] Copying Key to root@${FOREIGN_IP}...${NC}"
+        ssh-copy-id root@${FOREIGN_IP}
+
+        sudo systemctl daemon-reload
+        sudo systemctl enable ssh-tunnel
+        sudo systemctl restart ssh-tunnel
+        sudo systemctl status ssh-tunnel
+        read -n 1 -s -r -p $'\nPress any key to return to the menu...'
+        ;;
+      2)
+        echo -e "${YELLOW}[*] Restarting Tunnel...${NC}"
+        sudo systemctl daemon-reload
+        sudo systemctl restart ssh-tunnel
+        echo -e "${GREEN}[✓] Success.${NC}"
+        sleep 1
+        ;;
+      3)
+        echo -e "${RED}[*] Disabling Tunnel...${NC}"
+        sudo systemctl stop ssh-tunnel
+        sudo systemctl disable ssh-tunnel
+        echo -e "${GREEN}[✓] Tunnel stopped.${NC}"
+        sleep 1
+        ;;
+      4)
+        echo -e "${CYAN}[*] Tunnel Status:${NC}"
+        sudo systemctl status ssh-tunnel
+        read -n 1 -s -r -p $'\nPress any key to return to the menu...'
+        ;;
+      5)
+        break
+        ;;
+      *)
+        echo -e "${RED}Invalid option!${NC}"
+        sleep 1
+        ;;
+    esac
+  done
+}
+
+# --- Existing Functions ---
+
+function setup_firewall() {
   echo ""
   echo -e "\033[1;33m[*] Setting up...\033[0m"
   echo ""
@@ -24,7 +117,9 @@ function setup_firewall() {
     55551/tcp 55551/udp 55650/tcp 55650/udp 55651/tcp 55651/udp
     55750/tcp 55750/udp 55751/tcp 55751/udp 55850/tcp 55850/udp
     55851/tcp 55851/udp 55950/tcp 55950/udp 55951/tcp 55951/udp
-    56050/tcp 56050/udp 56051/tcp 56051/udp
+    56050/tcp 56050/udp 56051/tcp 56051/udp 5666/tcp 5666/udp
+    2083/tcp 2083/udp 5201/tcp 5201/udp 8880/tcp 8880/udp
+    2087/tcp 2087/udp
   )
 
   for port in "${PORTS[@]}"; do
@@ -152,39 +247,29 @@ function install_marzban_node() {
     case $marzban_choice in
       1)
             echo "Installing Marzban-node..."
-
             apt update && apt upgrade -y
-            apt install socat -y && apt install curl socat -y && apt install git -y
-
+            apt install socat curl git -y
             mkdir -p /var/lib/marzban-node/assets/
-
             wget -O /var/lib/marzban-node/assets/geosite.dat https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat
             wget -O /var/lib/marzban-node/assets/geoip.dat https://github.com/v2fly/geoip/releases/latest/download/geoip.dat
             wget -O /var/lib/marzban-node/assets/iran.dat https://github.com/bootmortis/iran-hosted-domains/releases/latest/download/iran.dat
 
             git clone https://github.com/Gozargah/Marzban-node
             cd Marzban-node
-
             curl -fsSL https://get.docker.com | sh
-            docker compose up -d
-
-            echo "Replace docker-compose.yml ..."
+            
             cat > docker-compose.yml <<EOF
 services:
   marzban-node:
-    # build: .
     image: gozargah/marzban-node:latest
     restart: always
     network_mode: host
-
-    # env_file: .env
     environment:
       SSL_CLIENT_CERT_FILE: "/var/lib/marzban-node/ssl_client_cert.pem"
       XRAY_EXECUTABLE_PATH: "/var/lib/marzban/xray-core/xray"
       SERVICE_PROTOCOL: "rest"
       SERVICE_PORT: 40050
       XRAY_API_PORT: 40051
-
     volumes:
       - /var/lib/marzban:/var/lib/marzban
       - /var/lib/marzban-node:/var/lib/marzban-node
@@ -194,57 +279,32 @@ EOF
             mkdir -p /var/lib/marzban/xray-core && cd /var/lib/marzban/xray-core
             wget https://github.com/XTLS/Xray-core/releases/download/v25.3.6/Xray-linux-64.zip
             apt install unzip -y
-            unzip Xray-linux-64.zip
-            rm Xray-linux-64.zip
+            unzip Xray-linux-64.zip && rm Xray-linux-64.zip
 
             cd ~/Marzban-node
             docker compose down --remove-orphans
             docker compose up -d
 
-        echo ""
         echo -e "\n\033[1;32m✅ Marzban-node installation complete.\033[0m"
-        echo -e "\033[1;33m📌 Please copy your certificate file to:\033[0m \033[1;36m/var/lib/marzban-node/\033[0m"
-        echo -e "\033[1;33m📌 File name should be:\033[0m \033[1;36mssl_client_cert.pem\033[0m\n"
-        echo ""
         read -p "Press any key to return to menu..." -n1
         ;;
       2)
-        cd ~/Marzban-node
-        docker compose down --remove-orphans
-        docker compose up -d
+        cd ~/Marzban-node && docker compose down && docker compose up -d
         echo -e "\033[1;32m✅ Marzban-node restarted.\033[0m"
         read -p "Press any key to return to menu..." -n1
         ;;
       3)
-        cd ~/Marzban-node
-        docker compose down
-
+        cd ~/Marzban-node && docker compose down
         rm -rf /var/lib/marzban/xray-core
-
-        apt install unzip -y
-
         mkdir -p /var/lib/marzban/xray-core && cd /var/lib/marzban/xray-core
-
         wget https://github.com/XTLS/xray-core/releases/latest/download/Xray-linux-64.zip
-
-        unzip Xray-linux-64.zip
-        rm Xray-linux-64.zip
-
-        cd ~/Marzban-node
-        docker compose down --remove-orphans
-        docker compose up -d
-
-        echo -e "\n\033[1;32m✅ Core updated and Marzban-node restarted.\033[0m\n"
+        unzip Xray-linux-64.zip && rm Xray-linux-64.zip
+        cd ~/Marzban-node && docker compose up -d
+        echo -e "\n\033[1;32m✅ Core updated.\033[0m\n"
         read -p "Press any key to return to menu..." -n1
         ;;
-
-      4)
-        break
-        ;;
-      *)
-        echo "Invalid option. Please choose 1, 2, or 3."
-        sleep 1
-        ;;
+      4) break ;;
+      *) echo "Invalid option."; sleep 1 ;;
     esac
   done
 }
@@ -267,48 +327,20 @@ function Backhual() {
 
     case $bh_choice in
       1)
-        echo "[*] Installing Backhaul..."
         rm -rf /tmp/my-uploads
         git clone https://github.com/Alighaemi9731/backhaul.git /tmp/my-uploads
         mkdir -p /opt/utunnel
         mv /tmp/my-uploads/utunnel /opt/utunnel/utunnel
         mv /tmp/my-uploads/utunnel_manager /root/utunnel_manager
         chmod +x /root/utunnel_manager
-        echo "[✓] Backhaul installed successfully."
         read -n 1 -s -r -p $'\nPress any key to return to the menu...'
         ;;
-      2)
-        echo "[*] Running Backhaul..."
-        /root/utunnel_manager
-        read -n 1 -s -r -p $'\nPress any key to return to the menu...'
-        ;;
-      3)
-        echo "[*] Restarting tunnel service..."
-        sudo systemctl restart utunnel_king
-        sudo systemctl enable utunnel_king
-        echo "[✓] Tunnel restarted and enabled on boot."
-        read -n 1 -s -r -p $'\nPress any key to return to the menu...'
-        ;;
-      4)
-        echo "[*] Stopping tunnel service..."
-        sudo systemctl stop utunnel_king
-        sudo systemctl disable utunnel_king
-        echo "[✓] Tunnel stopped and disabled from boot."
-        read -n 1 -s -r -p $'\nPress any key to return to the menu...'
-        ;;
-      5)
-        echo "[*] Tunnel status:"
-        sudo systemctl status utunnel_king
-        read -n 1 -s -r -p $'\nPress any key to return to the menu...'
-        ;;
-      6)
-        echo "Returning to main menu..."
-        break
-        ;;
-      *)
-        echo "Invalid option! Please try again."
-        sleep 1
-        ;;
+      2) /root/utunnel_manager; read -n 1 -s -r -p $'\nPress any key...'; ;;
+      3) sudo systemctl restart utunnel_king; read -n 1 -s -r -p $'\nDone...'; ;;
+      4) sudo systemctl stop utunnel_king; read -n 1 -s -r -p $'\nStopped...'; ;;
+      5) sudo systemctl status utunnel_king; read -n 1 -s -r -p $'\nPress any key...'; ;;
+      6) break ;;
+      *) echo "Invalid option!"; sleep 1 ;;
     esac
   done
 }
@@ -329,38 +361,25 @@ function GostMenu() {
 
     case $gost_choice in
       1)
-       echo -e "\033[1;33m[*] Checking if GOST service exists...\033[0m"
        if systemctl list-unit-files | grep -q gost.service; then
        sudo systemctl stop gost || true
-       sudo systemctl disable gost || true
        fi
        rm -rf /usr/local/bin/gost
-
-        echo "[*] Installing GOST..."
-        sudo apt install wget nano -y
         wget https://github.com/go-gost/gost/releases/download/v3.2.6/gost_3.2.6_linux_amd64.tar.gz
         mkdir -p /usr/local/bin/gost
         tar -xvzf gost_3.2.6_linux_amd64.tar.gz -C /usr/local/bin/gost/
-        chmod +x /usr/local/bin/gost/
-        rm -f /root/gost_3.2.6_linux_amd64.tar.gz
-        echo "[✓] Files installed. Editing service file..."
-        echo "Select your region:"
-        echo "1. Iran"
-        echo "2. Kharej"
-        echo "3. Just Update Core"
-        read -p "Enter choice [1-3]: " region_choice
-
+        rm -f gost_3.2.6_linux_amd64.tar.gz
+        
+        echo "1. Iran / 2. Kharej / 3. Skip Config"
+        read -p "Choice: " region_choice
         if [ "$region_choice" = "1" ]; then
           cat <<EOF | sudo tee /usr/lib/systemd/system/gost.service > /dev/null
 [Unit]
 Description=GO Simple Tunnel
 After=network.target
-Wants=network.target
-
 [Service]
 Type=simple
 ExecStart=/usr/local/bin/gost/gost -L=tcp://:2095 -F forward+tcp://30.0.0.2:443
-
 [Install]
 WantedBy=multi-user.target
 EOF
@@ -369,66 +388,27 @@ EOF
 [Unit]
 Description=GO Simple Tunnel
 After=network.target
-Wants=network.target
-
 [Service]
 Type=simple
 ExecStart=/usr/local/bin/gost/gost -L=tcp://:443/:2095
-
 [Install]
 WantedBy=multi-user.target
 EOF
-        else
-          echo "[!] Skipping service config."
-          echo "[*] Enabling and starting GOST service..."
-          sudo systemctl daemon-reload
-          sudo systemctl enable gost
-          sudo systemctl start gost
-          sudo systemctl restart gost
         fi
-
-        echo "[✓] GOST installed successfully."
-        read -n 1 -s -r -p $'\nPress any key to return to the menu...'
-        ;;
-      2)
-        echo "[*] Enabling and starting GOST service..."
-        sudo systemctl daemon-reload
-        sudo systemctl enable gost
-        sudo systemctl start gost
-        sudo systemctl restart gost
-        echo "[✓] GOST service is running."
-        read -n 1 -s -r -p $'\nPress any key to return to the menu...'
-        ;;
-      3)
-        echo "[*] Disabling and stopping GOST service..."
-        sudo systemctl disable gost
-        sudo systemctl stop gost
-        sudo systemctl status gost
-        read -n 1 -s -r -p $'\nPress any key to return to the menu...'
-        ;;
-      4)
-        echo -e "\n\033[1;32m Opening service file for editing...\033[0m"
-        sudo nano /usr/lib/systemd/system/gost.service
-        read -n 1 -s -r -p $'\nPress any key to return to the menu...'
-        ;;
-      5)
-        echo "Returning to previous menu..."
-        break
-        ;;
-      *)
-        echo -e "\033[1;31mInvalid option\033[0m"
-        sleep 1
-        ;;
+        sudo systemctl daemon-reload && sudo systemctl enable gost && sudo systemctl restart gost
+        read -n 1 -s -r -p $'\nDone...'; ;;
+      2) sudo systemctl restart gost; read -n 1 -s -r -p $'\nDone...'; ;;
+      3) sudo systemctl stop gost; read -n 1 -s -r -p $'\nStopped...'; ;;
+      4) sudo nano /usr/lib/systemd/system/gost.service ;;
+      5) break ;;
     esac
   done
 }
-
 
 function lena_tunnel() {
   bash <(curl -Ls https://raw.githubusercontent.com/MrAminiDev/LenaTunnel/main/install.sh)
   read -n 1 -s -r -p $'\nPress any key to return to the menu...'
 }
-
 
 function main_menu() {
   while true; do
@@ -448,6 +428,7 @@ function main_menu() {
     echo "7) Backhual Tunnel (Premium)"
     echo "8) GOST Tunnel"
     echo "9) Lena Tunnel"
+    echo "10) Auto SSH Tunnel 🔗"
     echo "0) Exit ❌"
     echo "-------------------------------"
     read -p "Enter your choice: " choice
@@ -462,11 +443,11 @@ function main_menu() {
       7) Backhual ;;
       8) GostMenu ;;
       9) lena_tunnel ;;
-      0) echo -e "\033[1;34mExiting...\033[0m"; exit 0 ;;
-      *) echo -e "\033[1;31mInvalid option\033[0m"; sleep 1 ;;
+      10) auto_ssh_tunnel_menu ;;
+      0) exit 0 ;;
+      *) echo "Invalid option"; sleep 1 ;;
     esac
   done
 }
-
 
 main_menu
