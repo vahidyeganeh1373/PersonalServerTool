@@ -82,9 +82,6 @@ function auto_ssh_tunnel_menu() {
         echo ""
         echo -e "\n${YELLOW}[*] Warning !!${NC}"
         echo -e "\n${YELLOW}[*] Please SET Foreign SSH Port TO 22 !!${NC}"
-        sudo systemctl stop ssh-tunnel.service
-        sudo systemctl disable ssh-tunnel.service
-        sudo rm /etc/systemd/system/ssh-tunnel.service
         apt update && apt install -y autossh
         cat <<EOF | sudo tee /etc/systemd/system/ssh-tunnel.service > /dev/null
 [Unit]
