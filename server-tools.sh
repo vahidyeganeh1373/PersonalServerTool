@@ -78,10 +78,12 @@ function auto_ssh_tunnel_menu() {
       1)
         echo -e "\n${YELLOW}[*] Setting up AutoSSH...${NC}"
         read -p "Foreign IP: " FOREIGN_IP
-        read -p "Config Port: " CONFIG_PORT
-        echo ""
-        echo -e "\n${YELLOW}[*] Warning !!${NC}"
-        echo -e "\n${YELLOW}[*] Please SET Foreign SSH Port TO 22 !!${NC}"
+        read -p "Foreign SSH Port (e.g., 22): " REMOTE_SSH_PORT
+        read -p "Config Port (e.g., 443): " CONFIG_PORT
+        sudo systemctl stop ssh-tunnel.service
+        sudo systemctl disable ssh-tunnel.service
+        sudo rm /etc/systemd/system/ssh-tunnel.service
+        sudo systemctl daemon-reload
         apt update && apt install -y autossh
         cat <<EOF | sudo tee /etc/systemd/system/ssh-tunnel.service > /dev/null
 [Unit]
@@ -89,7 +91,7 @@ Description=AutoSSH Tunnel
 After=network.target
 [Service]
 Environment="AUTOSSH_GATETIME=0"
-ExecStart=/usr/bin/autossh -M 0 -o "ServerAliveInterval 30" -o "ServerAliveCountMax 3" -o "StrictHostKeyChecking=no" -N -L 0.0.0.0:${CONFIG_PORT}:localhost:${CONFIG_PORT} root@${FOREIGN_IP}
+ExecStart=/usr/bin/autossh -M 0 -o "ServerAliveInterval 30" -o "ServerAliveCountMax 3" -o "ExitOnForwardFailure=yes" -o "StrictHostKeyChecking=no" -p ${REMOTE_SSH_PORT} -N -L 0.0.0.0:${CONFIG_PORT}:localhost:${CONFIG_PORT} root@${FOREIGN_IP}
 Restart=always
 RestartSec=3
 StandardOutput=null
@@ -97,8 +99,11 @@ StandardError=null
 [Install]
 WantedBy=multi-user.target
 EOF
+        if [ ! -f ~/.ssh/id_rsa ]; then
+            ssh-keygen -t rsa -N "" -f ~/.ssh/id_rsa
+        fi
         ssh-keygen -t rsa
-        ssh-copy-id root@${FOREIGN_IP}
+        ssh-copy-id -p ${REMOTE_SSH_PORT} root@${FOREIGN_IP}
         sudo systemctl daemon-reload && sudo systemctl enable ssh-tunnel && sudo systemctl restart ssh-tunnel
         read -n 1 -s -r -p $'\nPress any key to return...'
         ;;
@@ -114,7 +119,7 @@ EOF
 function setup_firewall() {
   echo -e "\n\033[1;33m[*] Setting up Firewall...\033[0m"
   apt install ufw -y
-  PORTS=(ssh http https 53/tcp 53/udp 80/tcp 80/udp 2020/tcp 2020/udp 443/tcp 443/udp 8000/tcp 8000/udp 57160/tcp 57160/udp 5629/tcp 5629/udp 1080/tcp 1080/udp 2111/tcp 2111/udp 2096/tcp 2096/udp 3832/tcp 3832/udp 8081/tcp 8081/udp 8082/tcp 8082/udp 2095/tcp 2095/udp 25349/tcp 25349/udp 10000/tcp 10000/udp 11000/tcp 11000/udp 11100/tcp 11100/udp 11200/tcp 11200/udp 11300/tcp 11300/udp 11400/tcp 11400/udp 11500/tcp 11500/udp 11600/tcp 11600/udp 21653/tcp 21653/udp 21652/tcp 21652/udp 14848/tcp 14848/udp 55150/tcp 55150/udp 55151/tcp 55151/udp 55250/tcp 55250/udp 55251/tcp 55251/udp 55350/tcp 55350/udp 55351/tcp 55351/udp 55450/tcp 55450/udp 55451/tcp 55451/udp 55550/tcp 55550/udp 55551/tcp 55551/udp 55650/tcp 55650/udp 55651/tcp 55651/udp 55750/tcp 55750/udp 55751/tcp 55751/udp 55850/tcp 55850/udp 55851/tcp 55851/udp 55950/tcp 55950/udp 55951/tcp 55951/udp 56050/tcp 56050/udp 56051/tcp 56051/udp 5666/tcp 5666/udp 2083/tcp 2083/udp 5201/tcp 5201/udp 8880/tcp 8880/udp 2087/tcp 2087/udp)
+  PORTS=(ssh http https 53/tcp 53/udp 80/tcp 80/udp 2020/tcp 2020/udp 443/tcp 443/udp 8000/tcp 8000/udp 57160/tcp 57160/udp 5629/tcp 5629/udp 1080/tcp 1080/udp 3478/tcp 3478/udp 2096/tcp 2096/udp 3832/tcp 3832/udp 8081/tcp 8081/udp 8082/tcp 8082/udp 2095/tcp 2095/udp 25349/tcp 25349/udp 10000/tcp 10000/udp 11000/tcp 11000/udp 11100/tcp 11100/udp 11200/tcp 11200/udp 11300/tcp 11300/udp 11400/tcp 11400/udp 11500/tcp 11500/udp 11600/tcp 11600/udp 21653/tcp 21653/udp 21652/tcp 21652/udp 14848/tcp 14848/udp 55150/tcp 55150/udp 55151/tcp 55151/udp 55250/tcp 55250/udp 55251/tcp 55251/udp 55350/tcp 55350/udp 55351/tcp 55351/udp 55450/tcp 55450/udp 55451/tcp 55451/udp 55550/tcp 55550/udp 55551/tcp 55551/udp 55650/tcp 55650/udp 55651/tcp 55651/udp 55750/tcp 55750/udp 55751/tcp 55751/udp 55850/tcp 55850/udp 55851/tcp 55851/udp 55950/tcp 55950/udp 55951/tcp 55951/udp 56050/tcp 56050/udp 56051/tcp 56051/udp 5666/tcp 5666/udp 2083/tcp 2083/udp 5201/tcp 5201/udp 8880/tcp 8880/udp 2087/tcp 2087/udp)
   for port in "${PORTS[@]}"; do ufw allow "$port"; done
   BLOCKED_SUBNETS=(10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10 169.254.0.0/16 173.245.0.0/16 141.101.0.0/16 240.0.0.0/4 25.10.40.0/24 25.11.10.0/24 103.58.50.0/24 195.137.167.0/24 45.14.174.0/24 206.191.152.0/24 216.218.185.0/24 114.208.187.0/24 185.235.87.0/24 185.235.86.0/24 102.0.0.0/8 233.252.0.0/24 224.0.0.0/4 240.0.0.0/24 203.0.113.0/24 198.51.100.0/24 198.18.0.0/15 192.88.99.0/24 192.0.2.0/24 192.0.0.0/24 102.224.45.0/24)
   for subnet in "${BLOCKED_SUBNETS[@]}"; do ufw deny out from any to "$subnet"; done
