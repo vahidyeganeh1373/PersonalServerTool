@@ -80,8 +80,6 @@ function auto_ssh_tunnel_menu() {
         read -p "Foreign IP: " FOREIGN_IP
         read -p "Foreign SSH Port (e.g., 22): " REMOTE_SSH_PORT
         read -p "Config Port (e.g., 443): " CONFIG_PORT
-        sudo systemctl stop ssh-tunnel.service
-        sudo systemctl disable ssh-tunnel.service
         sudo rm /etc/systemd/system/ssh-tunnel.service
         sudo systemctl daemon-reload
         apt update && apt install -y autossh
