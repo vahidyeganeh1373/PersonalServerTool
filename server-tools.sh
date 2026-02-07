@@ -66,13 +66,13 @@ function auto_ssh_tunnel_menu() {
     echo "==============================="
     echo -e "${PURPLE}       Auto SSH Tunnel        ${NC}"
     echo "==============================="
-    echo "1. Install / ReConfig ⬇️"
-    echo "2. Restart Service 🔄"
-    echo "3. Disable Tunnel ⛔"
-    echo "4. Edit Config 📝"
-    echo "5. Uninstall / Delete 🗑️"
-    echo "6. Service Status 📊"
-    echo "7. Main Menu 🔙"
+    echo "1. Install / ReConfig"
+    echo "2. Restart Service"
+    echo "3. Disable Tunnel"
+    echo "4. Edit Config"
+    echo "5. Uninstall / Delete"
+    echo "6. Service Status"
+    echo "7. Main Menu"
     echo "-------------------------------"
     read -p "Select an option [1-7]: " ash_choice
 
@@ -195,17 +195,57 @@ function optimize_network() {
   read -n 1 -s -r -p $'\n[✓] Optimization Applied. Press any key'
 }
 
-# --- 04 & 05. SSH & Password ---
 function change_ssh_port() {
-  sed -i 's/^#Port .*/Port 57160/' /etc/ssh/sshd_config
-  sed -i 's/^Port .*/Port 57160/' /etc/ssh/sshd_config
-  service sshd restart || service ssh restart
-  read -n 1 -s -r -p $'\n[✓] Port is 57160. Press any key'
+    echo -e "\n${YELLOW}[*] Changing SSH Port... ${NC}"
+    read -p "Enter New SSH Port: " NEW_PORT
+
+    if [[ "$NEW_PORT" =~ ^[0-9]+$ ]] && [ "$NEW_PORT" -gt 0 ]; then
+
+        if command -v ufw >/dev/null; then
+            echo -e "${YELLOW}[*] Updating UFW...${NC}"
+            ufw allow $NEW_PORT/tcp >/dev/null
+            ufw allow $NEW_PORT/udp >/dev/null
+            ufw reload >/dev/null
+            echo -e "${GREEN}[✓] UFW Updated (Port $NEW_PORT Allowed) ${NC}"
+        fi
+
+        sed -i '/^Port /d' /etc/ssh/sshd_config
+        sed -i '/^#Port /d' /etc/ssh/sshd_config
+        echo "Port $NEW_PORT" >> /etc/ssh/sshd_config
+
+        echo -e "${YELLOW}[*] Restarting SSH service...${NC}"
+        if systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null; then
+            echo -e "${GREEN}[✓] SSH Port Successfully Changed To $NEW_PORT ${NC}"
+        else
+            echo -e "${RED}[!] Failed To Restart SSH. Please Check /etc/ssh/sshd_config Manually ${NC}"
+        fi
+    else
+        echo -e "${RED}[!] Invalid Input. Please Enter a Valid Port Number ${NC}"
+    fi
+    
+    read -n 1 -s -r -p $'\nPress any key to return...'
 }
 
 function change_root_password() {
-  echo -e "1982Gonzoi!@#\n1982Gonzoi!@#" | passwd root
-  read -n 1 -s -r -p $'\n[✓] Password changed to 1982Gonzoi!@#. Press any key'
+    echo -e "\n${YELLOW}[*] Changing Root Password...${NC}"
+    
+    # استفاده از -s برای اینکه پسورد موقع تایپ دیده نشود
+    read -p "Enter New Root Password: " USER_PASS
+    echo -e "\n"
+
+    if [ -n "$USER_PASS" ]; then
+        echo -e "$USER_PASS\n$USER_PASS" | passwd root > /dev/null 2>&1
+        
+        if [ $? -eq 0 ]; then
+            echo -e "${GREEN}[✓] Password Successfully Changed ${NC}"
+        else
+            echo -e "${RED}[!] Error: Could Not Change Password ${NC}"
+        fi
+    else
+        echo -e "${RED}[!] Password Cannot Be Empty! ${NC}"
+    fi
+
+    read -n 1 -s -r -p $'\nPress any key to return...'
 }
 
 # --- 06. Marzban Node ---
@@ -343,18 +383,18 @@ function main_menu() {
     echo "==============================="
     echo -e "${PURPLE}    Server IP : ${BLUE}$SERVER_IP${NC}"
     echo "==============================="
-    echo -e "${CYAN}01)${NC} Setup Firewall 🔥"
-    echo -e "${CYAN}02)${NC} Install BBR 🚀"
-    echo -e "${CYAN}03)${NC} Optimize Network 🚀"
-    echo -e "${CYAN}04)${NC} Change SSH Port 🔐"
-    echo -e "${CYAN}05)${NC} Change Root Password 🔑"
+    echo -e "${CYAN}01)${NC} Setup Firewall"
+    echo -e "${CYAN}02)${NC} Install BBR"
+    echo -e "${CYAN}03)${NC} Optimize Network"
+    echo -e "${CYAN}04)${NC} Change SSH Port"
+    echo -e "${CYAN}05)${NC} Change Root Password"
     echo -e "${CYAN}06)${NC} Marzban Node"
     echo -e "${CYAN}07)${NC} Backhual Tunnel (Premium)"
     echo -e "${CYAN}08)${NC} GOST Tunnel"
     echo -e "${CYAN}09)${NC} Lena Tunnel"
-    echo -e "${CYAN}10)${NC} Auto SSH Tunnel (Just Iran Side)🔗"
-    echo -e "${CYAN}11)${NC} Pasarguard Node 🛡️"
-    echo -e "${CYAN}00)${NC} Exit ❌"
+    echo -e "${CYAN}10)${NC} Auto SSH Tunnel (Just Iran Side)"
+    echo -e "${CYAN}11)${NC} Pasarguard Node"
+    echo -e "${CYAN}00)${NC} Exit"
     echo "-------------------------------"
     read -p "Enter your choice: " choice
 
