@@ -226,6 +226,31 @@ function change_ssh_port() {
     read -n 1 -s -r -p $'\nPress any key to return...'
 }
 
+function enable_root_login() {
+    echo -e "\n${YELLOW}[*] Enabling Direct Root Login... ${NC}"
+    
+    read -p "Set a Password for Root user: " ROOT_PASS
+
+    if [ -n "$ROOT_PASS" ]; then
+        echo -e "$ROOT_PASS\n$ROOT_PASS" | sudo passwd root > /dev/null 2>&1
+        
+        sudo sed -i 's/^#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+        sudo sed -i 's/^PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+        
+        sudo sed -i 's/^PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+        sudo sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+        
+        sudo systemctl restart sshd || sudo service ssh restart
+
+        echo -e "\n${GREEN}[✓] Root Login Is Now Enabled ${NC}"
+        echo -e "${YELLOW}[!] You Can Now Login Directly Using: ssh root@Your_IP ${NC}"
+    else
+        echo -e "\n${RED}[!] Password Cannot Be Empty! ${NC}"
+    fi
+
+    read -n 1 -s -r -p $'\nPress any key to return...'
+}
+
 function change_root_password() {
     echo -e "\n${YELLOW}[*] Changing Root Password...${NC}"
     
@@ -394,6 +419,7 @@ function main_menu() {
     echo -e "${CYAN}09)${NC} Lena Tunnel"
     echo -e "${CYAN}10)${NC} Auto SSH Tunnel (Just Iran Side)"
     echo -e "${CYAN}11)${NC} Pasarguard Node"
+    echo -e "${CYAN}12)${NC} Enable Root Login"
     echo -e "${CYAN}00)${NC} Exit"
     echo "-------------------------------"
     read -p "Enter your choice: " choice
@@ -410,7 +436,8 @@ function main_menu() {
       09|9) lena_tunnel ;;
       10) auto_ssh_tunnel_menu ;;
       11) pasarguard_node_menu ;;
-      00|0) exit 0 ;;
+      12) enable_root_login ;;
+      0|0) exit 0 ;;
       *) echo "Invalid option"; sleep 1 ;;
     esac
   done
