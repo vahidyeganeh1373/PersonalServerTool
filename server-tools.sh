@@ -67,21 +67,29 @@ function auto_ssh_tunnel_menu() {
     echo -e "${PURPLE}       Auto SSH Tunnel        ${NC}"
     echo "==============================="
     echo "1. Install / ReConfig ⬇️"
-    echo "2. Enable / Restart ♻️"
-    echo "3. Disable ⛔"
-    echo "4. Status 📊"
-    echo "5. Return 🔙"
+    echo "2. Restart Service 🔄"
+    echo "3. Disable Tunnel ⛔"
+    echo "4. Edit Config 📝"
+    echo "5. Uninstall / Delete 🗑️"
+    echo "6. Service Status 📊"
+    echo "7. Main Menu 🔙"
     echo "-------------------------------"
-    read -p "Select an option [1-5]: " ash_choice
+    read -p "Select an option [1-7]: " ash_choice
 
     case $ash_choice in
       1)
-        echo -e "\n${YELLOW}[*] Setting up AutoSSH...${NC}"
+        echo -e "\n${YELLOW}[*] Setting up AutoSSH... ${NC}"
         read -p "Foreign IP: " FOREIGN_IP
         read -p "Foreign SSH Port (e.g., 22): " REMOTE_SSH_PORT
-        read -p "Config Port (e.g., 443): " CONFIG_PORT
-        sudo systemctl daemon-reload
-        apt update && apt install -y autossh
+        read -p "Config Port (e.g., 2083): " CONFIG_PORT
+        systemctl stop ssh-tunnel 2>/dev/null
+        systemctl disable ssh-tunnel 2>/dev/null
+        rm -f /etc/systemd/system/ssh-tunnel.service
+        ssh-keygen -f "/root/.ssh/known_hosts" -R "$FOREIGN_IP" 2>/dev/null
+        systemctl daemon-reload
+        if ! command -v autossh &> /dev/null; then
+            apt update && apt install -y autossh
+        fi
         cat <<EOF | sudo tee /etc/systemd/system/ssh-tunnel.service > /dev/null
 [Unit]
 Description=AutoSSH Tunnel
@@ -99,15 +107,55 @@ EOF
         if [ ! -f ~/.ssh/id_rsa ]; then
             ssh-keygen -t rsa -N "" -f ~/.ssh/id_rsa
         fi
-        ssh-keygen -t rsa
-        ssh-copy-id -p ${REMOTE_SSH_PORT} root@${FOREIGN_IP}
-        sudo systemctl daemon-reload && sudo systemctl enable ssh-tunnel && sudo systemctl restart ssh-tunnel
+        ssh-copy-id -o "StrictHostKeyChecking=no" -p ${REMOTE_SSH_PORT} root@${FOREIGN_IP}
+        systemctl daemon-reload && systemctl enable ssh-tunnel && systemctl restart ssh-tunnel
+        echo -e "${GREEN}[✓] Tunnel Established On Port ${CONFIG_PORT} ${NC}"
         read -n 1 -s -r -p $'\nPress any key to return...'
         ;;
-      2) sudo systemctl daemon-reload && sudo systemctl restart ssh-tunnel; echo -e "${GREEN}[✓] Success.${NC}"; sleep 1 ;;
-      3) sudo systemctl stop ssh-tunnel && sudo systemctl disable ssh-tunnel; echo -e "${GREEN}[✓] Tunnel stopped.${NC}"; sleep 1 ;;
-      4) sudo systemctl status ssh-tunnel; read -n 1 -s -r -p $'\nPress any key to return...'; ;;
-      5) break ;;
+      2) systemctl daemon-reload && systemctl restart ssh-tunnel; echo -e "${GREEN}[✓] Service Restart Successfully ${NC}"; sleep 1 ;;
+      3) systemctl stop ssh-tunnel && systemctl disable ssh-tunnel; echo -e "${GREEN}[✓] Tunnel Stopped ${NC}"; sleep 1 ;;
+      4) 
+        if [ -f /etc/systemd/system/ssh-tunnel.service ]; then
+            nano /etc/systemd/system/ssh-tunnel.service
+            echo -e "${YELLOW}[!] Reloading Systemd For Changes... ${NC}"
+            systemctl daemon-reload
+            systemctl restart ssh-tunnel
+            echo -e "${GREEN}[✓] Service Updated And Restarted ${NC}"
+        else
+            echo -e "${RED}[!] Tunnel Service Not Found. Install First ${NC}"
+        fi
+        sleep 2
+        ;;
+      5)
+        echo -e "\n${RED}[*] Uninstalling AutoSSH Tunnel... ${NC}"
+        systemctl stop ssh-tunnel.service 2>/dev/null
+        systemctl disable ssh-tunnel.service 2>/dev/null
+        
+        rm -f /etc/systemd/system/ssh-tunnel.service
+        
+        systemctl daemon-reload
+        systemctl reset-failed
+        
+        pkill -f autossh 2>/dev/null
+        
+        echo -e "${GREEN}[✓] Tunnel Uninstalled Completely ${NC}"
+        sleep 2
+        ;;
+ 
+      6) 
+        echo -e "\n${YELLOW}[*] Checking Tunnel Status...${NC}"
+        systemctl is-active --quiet ssh-tunnel && echo -e "Service: ${GREEN} Active (Running) ${NC}" || echo -e "Service: ${RED} Inactive (Stopped) ${NC}"
+        
+        echo -e "\n${YELLOW}[*] Recent Connection Logs: ${NC}"
+        echo "-------------------------------"
+        journalctl -u ssh-tunnel -n 5 --no-hostname --no-pager
+        
+        echo -e "\n${YELLOW}[*] Active Network Connection:${NC}"
+        netstat -antp | grep autossh | grep ESTABLISHED || echo -e "${RED} No Active Connection To Foreign Server! ${NC}"
+        
+        echo "-------------------------------"
+        read -n 1 -s -r -p $'\nPress any key to return...'
+        ;;      7) break ;;
     esac
   done
 }
