@@ -146,16 +146,22 @@ EOF
         echo -e "\n${YELLOW}[*] Checking Tunnel Status...${NC}"
         systemctl is-active --quiet ssh-tunnel && echo -e "Service: ${GREEN} Active (Running) ${NC}" || echo -e "Service: ${RED} Inactive (Stopped) ${NC}"
         
-        echo -e "\n${YELLOW}[*] Recent Connection Logs: ${NC}"
+        echo -e "\n${YELLOW}[*] Recent Connection Logs:${NC}"
         echo "-------------------------------"
-        journalctl -u ssh-tunnel -n 5 --no-hostname --no-pager
+        journalctl -u ssh-tunnel -n 10 --no-hostname --no-pager
         
         echo -e "\n${YELLOW}[*] Active Network Connection:${NC}"
-        netstat -antp | grep autossh | grep ESTABLISHED || echo -e "${RED} No Active Connection To Foreign Server! ${NC}"
+        if ss -antp | grep -q "autossh" || ss -antp | grep -q "ssh"; then
+            ss -antp | grep -E "autossh|ssh" | grep "ESTAB" | awk '{print $5, $6}'
+            echo -e "${GREEN}[✓] Connection Is Live And Established ${NC}"
+        else
+            echo -e "${RED}[!] NO active Connection Found. Check Your Foreign IP/Port ${NC}"
+        fi
         
         echo "-------------------------------"
         read -n 1 -s -r -p $'\nPress any key to return...'
-        ;;      7) break ;;
+        ;;  
+        7) break ;;
     esac
   done
 }
