@@ -20,40 +20,70 @@ function pasarguard_node_menu() {
     echo "==============================="
     echo -e "${CYAN}      Pasarguard Node Menu     ${NC}"
     echo "==============================="
-    echo "1. Install ⬇️"
-    echo "2. Change core version ♻️"
-    echo "3. Back to MainMenu 🔙"
+    echo "1. Install"
+    echo "2. Change core version"
+    echo "3. Renew Cert"
+    echo "4. Back to MainMenu"
     echo "-------------------------------"
-    read -p "Select an option [1-3]: " pg_choice
+    read -p "Select an option [1-4]: " pg_choice
 
     case $pg_choice in
       1)
-        echo -e "${YELLOW}[*] Preparing assets...${NC}"
+        echo -e "${YELLOW}[*] Preparing Assets... ${NC}"
         mkdir -p /var/lib/pg-node/assets/
         wget -O /var/lib/pg-node/assets/iran.dat https://github.com/bootmortis/iran-hosted-domains/releases/latest/download/iran.dat
         wget -O /var/lib/pg-node/assets/geoip.dat https://github.com/v2fly/geoip/releases/latest/download/geoip.dat
         wget -O /var/lib/pg-node/assets/geosite.dat https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat
         
-        echo -e "${YELLOW}[*] Installing Pasarguard...${NC}"
+        echo -e "${YELLOW}[*] Installing Pasarguard... ${NC}"
         sudo bash -c "$(curl -sL https://github.com/PasarGuard/scripts/raw/main/pg-node.sh)" @ install
         
-        echo -e "${YELLOW}[*] Modifying docker-compose.yml...${NC}"
+        echo -e "${YELLOW}[*] Modifying Docker-Compose.yml... ${NC}"
         if [ -f /opt/pg-node/docker-compose.yml ]; then
-            # اضافه کردن مسیر دیتابیس‌ها به انتهای بخش volumes
-            sudo sed -i '/volumes:/a \      - /var/lib/pg-node/assets:/usr/local/share/xray' /opt/pg-node/docker-compose.yml
-            echo -e "${GREEN}[✓] Assets volume added to yaml.${NC}"
+            if ! grep -q "/var/lib/pg-node/assets" /opt/pg-node/docker-compose.yml; then
+                sudo sed -i '/volumes:/a \      - /var/lib/pg-node/assets:/usr/local/share/xray' /opt/pg-node/docker-compose.yml
+                echo -e "${GREEN}[✓] Assets volume added to yaml.${NC}"
+            fi
         fi
         
-        echo -e "${YELLOW}[*] Restarting pg-node...${NC}"
+        echo -e "${YELLOW}[*] Restarting Pg-Node... ${NC}"
         pg-node restart || true
-        read -n 1 -s -r -p $'\nPress any key to return to the menu...'
+        read -n 1 -s -r -p $'\nPress any key to return...'
         ;;
+
       2)
-        echo -e "${YELLOW}[*] Updating Core...${NC}"
-        pg-node core-update || echo "Error: pg-node not found."
-        read -n 1 -s -r -p $'\nPress any key to return to the menu...'
+        echo -e "${YELLOW}[*] Updating Core... ${NC}"
+        pg-node core-update || echo "Error: Pg-Node Not Found "
+        read -n 1 -s -r -p $'\nPress any key to return...'
         ;;
-      3) break ;;
+
+      3)
+        echo -e "${YELLOW}[*] Renewing Certificate...${NC}"
+        pg-node renew-cert
+        
+        echo -e "${YELLOW}[*] Checking Configuration...${NC}"
+        if [ -f /opt/pg-node/docker-compose.yml ]; then
+            if ! grep -q "/var/lib/pg-node/assets" /opt/pg-node/docker-compose.yml; then
+                echo "      - /var/lib/pg-node/assets:/usr/local/share/xray" >> /opt/pg-node/docker-compose.yml
+                echo -e "${GREEN}[✓] Assets Added To Docker-Compose.yml ${NC}"
+            else
+                echo -e "${CYAN}[!] Assets Already Exists In Docker-Compose.yml ${NC}"
+            fi
+            
+            echo -e "${YELLOW}[!] Opening Nano For Final Check... (Save and Exit) ${NC}"
+            sleep 2
+            nano /opt/pg-node/docker-compose.yml
+            
+            echo -e "${YELLOW}[*] Restarting pg-node...${NC}"
+            pg-node restart
+            echo -e "${GREEN}[✓] Certificate Renewed And Service Restarted.${NC}"
+        else
+            echo -e "${RED}[!] Error: /opt/pg-node/docker-compose.yml Not Found! ${NC}"
+        fi
+        read -n 1 -s -r -p $'\nPress any key to return...'
+        ;;
+
+      4) break ;;
       *) echo "Invalid option"; sleep 1 ;;
     esac
   done
