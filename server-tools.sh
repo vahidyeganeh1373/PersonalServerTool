@@ -127,6 +127,12 @@ case $ash_choice in
         read -p "Foreign SSH Port (e.g., 22): " REMOTE_SSH_PORT
         read -p "Config Port (e.g., 2083): " CONFIG_PORT
 
+if command -v fuser >/dev/null; then
+            fuser -k ${CONFIG_PORT}/tcp 2>/dev/null || true
+        else
+            apt install psmisc -y >/dev/null
+            fuser -k ${CONFIG_PORT}/tcp 2>/dev/null || true
+        fi
         rm -f ~/.ssh/ssh-* 2>/dev/null
         systemctl stop ssh-tunnel 2>/dev/null || true
         systemctl disable ssh-tunnel 2>/dev/null || true
