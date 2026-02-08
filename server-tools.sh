@@ -149,7 +149,7 @@ After=network.target
 [Service]
 Environment="AUTOSSH_GATETIME=0"
 Environment="AUTOSSH_POLL=30"
-ExecStart=/usr/bin/autossh -M 0 -g -o "ServerAliveInterval 15" -o "ServerAliveCountMax 3" -o "StrictHostKeyChecking=no" -o "ExitOnForwardFailure=yes" -o "Cipher=chacha20-poly1305@openssh.com" -o "IPQoS=throughput" -p ${REMOTE_SSH_PORT} -N -L 0.0.0.0:${CONFIG_PORT}:127.0.0.1:${CONFIG_PORT} root@${FOREIGN_IP}
+ExecStart=/usr/bin/autossh -M 0 -g -o "ServerAliveInterval 15" -o "ServerAliveCountMax 3" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null" -o "ExitOnForwardFailure=yes" -o "Cipher=chacha20-poly1305@openssh.com" -o "IPQoS=throughput" -p ${REMOTE_SSH_PORT} -N -L 0.0.0.0:${CONFIG_PORT}:127.0.0.1:${CONFIG_PORT} root@${FOREIGN_IP}
 Restart=always
 RestartSec=5
 
