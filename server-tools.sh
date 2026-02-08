@@ -120,7 +120,9 @@ function auto_ssh_tunnel_menu() {
     echo "7. Main Menu"
     echo "-------------------------------"
     read -p "Select an option [1-7]: " ash_choice
-1)
+    
+    case $ash_choice in
+        1)
         echo -e "\n${YELLOW}[*] Setting up AutoSSH... ${NC}"
         read -p "Foreign IP: " FOREIGN_IP
         read -p "Foreign SSH Port (e.g., 22): " REMOTE_SSH_PORT
