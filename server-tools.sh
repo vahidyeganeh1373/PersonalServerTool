@@ -147,7 +147,17 @@ After=network.target
 [Service]
 Environment="AUTOSSH_GATETIME=0"
 Environment="AUTOSSH_POLL=30"
-ExecStart=/usr/bin/autossh -M 0 -g -o "ServerAliveInterval 15" -o "ServerAliveCountMax 3" -o "StrictHostKeyChecking=no" -o "ExitOnForwardFailure=yes" -o "Cipher=chacha20-poly1305@openssh.com" -o "IPQoS=throughput" -p ${REMOTE_SSH_PORT} -N -L 0.0.0.0:${CONFIG_PORT}:127.0.0.1:${CONFIG_PORT} root@${FOREIGN_IP}
+ExecStart=/usr/bin/autossh -M 0 -g \
+    -o "StrictHostKeyChecking=no" \
+    -o "UserKnownHostsFile=/dev/null" \
+    -o "Cipher=chacha20-poly1305@openssh.com" \
+    -o "ServerAliveInterval 15" \
+    -o "ServerAliveCountMax 3" \
+    -o "ExitOnForwardFailure=yes" \
+    -o "ControlMaster auto" \
+    -o "ControlPath /root/.ssh/ssh-mux-%r@%h:%p" \
+    -o "ControlPersist 4h" \
+    -p ${REMOTE_SSH_PORT} -N -L 0.0.0.0:${CONFIG_PORT}:127.0.0.1:${CONFIG_PORT} root@${FOREIGN_IP}
 Restart=always
 RestartSec=5
 
@@ -178,6 +188,7 @@ EOC
         
         systemctl daemon-reload
         systemctl enable ssh-tunnel
+        systemctl start ssh-tunnel
         systemctl restart ssh-tunnel || echo -e "${RED}Failed to start service!${NC}"
         
         echo -e "${GREEN}[✓] Setup process finished.${NC}"
