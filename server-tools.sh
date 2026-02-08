@@ -155,7 +155,7 @@ ExecStart=/usr/bin/autossh -M 0 -g \
     -o "ServerAliveCountMax 3" \
     -o "ExitOnForwardFailure=yes" \
     -o "ControlMaster auto" \
-    -o "ControlPath /root/.ssh/ssh-mux-%r@%h:%p" \
+    -o "ControlPath /tmp/ssh-mux-%r@%h-%p" \
     -o "ControlPersist 4h" \
     -p ${REMOTE_SSH_PORT} -N -L 0.0.0.0:${CONFIG_PORT}:127.0.0.1:${CONFIG_PORT} root@${FOREIGN_IP}
 Restart=always
