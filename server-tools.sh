@@ -127,16 +127,14 @@ case $ash_choice in
         read -p "Foreign SSH Port (e.g., 22): " REMOTE_SSH_PORT
         read -p "Config Port (e.g., 2083): " CONFIG_PORT
 
-if command -v fuser >/dev/null; then
-            fuser -k ${CONFIG_PORT}/tcp 2>/dev/null || true
-        else
-            apt install psmisc -y >/dev/null
-            fuser -k ${CONFIG_PORT}/tcp 2>/dev/null || true
-        fi
-        rm -f ~/.ssh/ssh-* 2>/dev/null
         systemctl stop ssh-tunnel 2>/dev/null || true
-        systemctl disable ssh-tunnel 2>/dev/null || true
-        
+        systemctl disable ssh-tunnel.service 2>/dev/null || true
+        rm -f /etc/systemd/system/ssh-tunnel.service || true
+
+        pkill -9 autossh 2>/dev/null || true
+        fuser -k ${CONFIG_PORT}/tcp 2>/dev/null || true
+        rm -f ~/.ssh/ssh-* 2>/dev/null
+
         if ! command -v autossh &> /dev/null; then
             apt update && apt install -y autossh
         fi
@@ -149,7 +147,7 @@ After=network.target
 [Service]
 Environment="AUTOSSH_GATETIME=0"
 Environment="AUTOSSH_POLL=30"
-ExecStart=/usr/bin/autossh -M 0 -g -o "ServerAliveInterval 15" -o "ServerAliveCountMax 3" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null" -o "ExitOnForwardFailure=yes" -o "Cipher=chacha20-poly1305@openssh.com" -o "IPQoS=throughput" -p ${REMOTE_SSH_PORT} -N -L 0.0.0.0:${CONFIG_PORT}:127.0.0.1:${CONFIG_PORT} root@${FOREIGN_IP}
+ExecStart=/usr/bin/autossh -M 0 -g -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ExitOnForwardFailure=yes -o ServerAliveInterval=15 -o ServerAliveCountMax=3 -p $REMOTE_SSH_PORT -N -L 0.0.0.0:$CONFIG_PORT:127.0.0.1:$CONFIG_PORT root@$FOREIGN_IP
 Restart=always
 RestartSec=5
 
@@ -199,11 +197,12 @@ EOC
         echo -e "\n${RED}[*] Uninstalling... ${NC}"
         systemctl stop ssh-tunnel.service 2>/dev/null || true
         systemctl disable ssh-tunnel.service 2>/dev/null || true
-        rm -f /etc/systemd/system/ssh-tunnel.service || true
-        rm -f ~/.ssh/config || true
-        rm -f ~/.ssh/ssh-* || true
-        systemctl daemon-reload || true
         pkill -9 autossh 2>/dev/null || true
+        
+        rm -f /etc/systemd/system/ssh-tunnel.service || true
+        rm -f ~/.ssh/ssh-* || true 
+  
+        systemctl daemon-reload || true
         echo -e "${GREEN}[✓] Done ${NC}"; sleep 2 
         ;;
       6) 
