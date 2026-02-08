@@ -121,39 +121,54 @@ function auto_ssh_tunnel_menu() {
     echo "-------------------------------"
     read -p "Select an option [1-7]: " ash_choice
 
-    case $ash_choice in
-      1)
+   1)
         echo -e "\n${YELLOW}[*] Setting up AutoSSH... ${NC}"
         read -p "Foreign IP: " FOREIGN_IP
         read -p "Foreign SSH Port (e.g., 22): " REMOTE_SSH_PORT
         read -p "Config Port (e.g., 2083): " CONFIG_PORT
-        systemctl stop ssh-tunnel 2>/dev/null
-        systemctl disable ssh-tunnel 2>/dev/null
+        
+        # توقف و پاکسازی مطمئن
+        systemctl stop ssh-tunnel 2>/dev/null || true
+        systemctl disable ssh-tunnel 2>/dev/null || true
         rm -f /etc/systemd/system/ssh-tunnel.service
-        ssh-keygen -f "/root/.ssh/known_hosts" -R "$FOREIGN_IP" 2>/dev/null
-        systemctl daemon-reload
+        
+        # اطمینان از وجود پوشه ssh
+        mkdir -p /root/.ssh
+        chmod 700 /root/.ssh
+        ssh-keygen -f "/root/.ssh/known_hosts" -R "$FOREIGN_IP" 2>/dev/null || true
+        
         if ! command -v autossh &> /dev/null; then
             apt update && apt install -y autossh
         fi
+
         cat <<EOF | sudo tee /etc/systemd/system/ssh-tunnel.service > /dev/null
 [Unit]
 Description=AutoSSH Tunnel
 After=network.target
+
 [Service]
+User=root
 Environment="AUTOSSH_GATETIME=0"
-ExecStart=/usr/bin/autossh -M 0 -o "ServerAliveInterval 30" -o "ServerAliveCountMax 3" -o "ExitOnForwardFailure=yes" -o "StrictHostKeyChecking=no" -p ${REMOTE_SSH_PORT} -N -L 0.0.0.0:${CONFIG_PORT}:localhost:${CONFIG_PORT} root@${FOREIGN_IP}
+Environment="AUTOSSH_POLL=30"
+ExecStart=/usr/bin/autossh -M 0 -g -o "ServerAliveInterval 15" -o "ServerAliveCountMax 3" -o "StrictHostKeyChecking=no" -o "ExitOnForwardFailure=yes" -p ${REMOTE_SSH_PORT} -N -L ${CONFIG_PORT}:127.0.0.1:${CONFIG_PORT} root@${FOREIGN_IP}
 Restart=always
-RestartSec=3
-StandardOutput=null
-StandardError=null
+RestartSec=5
+
 [Install]
 WantedBy=multi-user.target
 EOF
+
         if [ ! -f ~/.ssh/id_rsa ]; then
-            ssh-keygen -t rsa -N "" -f ~/.ssh/id_rsa
+            ssh-keygen -t rsa -b 2048 -N "" -f ~/.ssh/id_rsa
         fi
+        
+        echo -e "${YELLOW}[*] Copying ID to Foreign Server... (Enter Foreign Password)${NC}"
         ssh-copy-id -o "StrictHostKeyChecking=no" -p ${REMOTE_SSH_PORT} root@${FOREIGN_IP}
-        systemctl daemon-reload && systemctl enable ssh-tunnel && systemctl restart ssh-tunnel
+        
+        systemctl daemon-reload
+        systemctl enable ssh-tunnel
+        systemctl restart ssh-tunnel
+        
         echo -e "${GREEN}[✓] Tunnel Established On Port ${CONFIG_PORT} ${NC}"
         read -n 1 -s -r -p $'\nPress any key to return...'
         ;;
