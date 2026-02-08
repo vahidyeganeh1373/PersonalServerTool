@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION="1.2.1"
+VERSION="1.2.3"
 SERVER_IP=$(hostname -I | awk '{print $1}')
 
 # Colors
@@ -157,11 +157,10 @@ ExecStart=/usr/bin/autossh -M 0 -g \\
     -o "ControlMaster=auto" \\
     -o "ControlPath=/tmp/ssh-mux" \\
     -o "ControlPersist=4h" \\
-    -o "ServerAliveInterval=20" \\
-    -o "ServerAliveCountMax=3" \\
     -o "Cipher=chacha20-poly1305@openssh.com" \\
-    -p \${REMOTE_SSH_PORT} -L 0.0.0.0:\${CONFIG_PORT}:127.0.0.1:\${CONFIG_PORT} \\
-    root@\${FOREIGN_IP} "sleep infinity"
+    -o "ServerAliveInterval 15" \\
+    -o "ServerAliveCountMax 3" \\
+    -p \${REMOTE_SSH_PORT} -L 0.0.0.0:\${CONFIG_PORT}:127.0.0.1:\${CONFIG_PORT} root@\${FOREIGN_IP} "sleep infinity"
 Restart=always
 RestartSec=5
 
