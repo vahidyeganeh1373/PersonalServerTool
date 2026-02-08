@@ -120,37 +120,36 @@ function auto_ssh_tunnel_menu() {
     echo "7. Main Menu"
     echo "-------------------------------"
     read -p "Select an option [1-7]: " ash_choice
-
-   1)
+1)
         echo -e "\n${YELLOW}[*] Setting up AutoSSH... ${NC}"
         read -p "Foreign IP: " FOREIGN_IP
         read -p "Foreign SSH Port (e.g., 22): " REMOTE_SSH_PORT
         read -p "Config Port (e.g., 2083): " CONFIG_PORT
         
-        # توقف و پاکسازی مطمئن
         systemctl stop ssh-tunnel 2>/dev/null || true
         systemctl disable ssh-tunnel 2>/dev/null || true
-        rm -f /etc/systemd/system/ssh-tunnel.service
+        rm -f /etc/systemd/system/ssh-tunnel.service || true
         
-        # اطمینان از وجود پوشه ssh
         mkdir -p /root/.ssh
+        touch /root/.ssh/known_hosts
         chmod 700 /root/.ssh
+        
         ssh-keygen -f "/root/.ssh/known_hosts" -R "$FOREIGN_IP" 2>/dev/null || true
         
         if ! command -v autossh &> /dev/null; then
             apt update && apt install -y autossh
         fi
 
+        # نوشتن فایل سرویس
         cat <<EOF | sudo tee /etc/systemd/system/ssh-tunnel.service > /dev/null
 [Unit]
 Description=AutoSSH Tunnel
 After=network.target
 
 [Service]
-User=root
 Environment="AUTOSSH_GATETIME=0"
 Environment="AUTOSSH_POLL=30"
-ExecStart=/usr/bin/autossh -M 0 -g -o "ServerAliveInterval 15" -o "ServerAliveCountMax 3" -o "StrictHostKeyChecking=no" -o "ExitOnForwardFailure=yes" -p ${REMOTE_SSH_PORT} -N -L ${CONFIG_PORT}:127.0.0.1:${CONFIG_PORT} root@${FOREIGN_IP}
+ExecStart=/usr/bin/autossh -M 0 -g -o "ServerAliveInterval 15" -o "ServerAliveCountMax 3" -o "StrictHostKeyChecking=no" -o "ExitOnForwardFailure=yes" -p ${REMOTE_SSH_PORT} -N -L 0.0.0.0:${CONFIG_PORT}:127.0.0.1:${CONFIG_PORT} root@${FOREIGN_IP}
 Restart=always
 RestartSec=5
 
@@ -162,16 +161,17 @@ EOF
             ssh-keygen -t rsa -b 2048 -N "" -f ~/.ssh/id_rsa
         fi
         
-        echo -e "${YELLOW}[*] Copying ID to Foreign Server... (Enter Foreign Password)${NC}"
-        ssh-copy-id -o "StrictHostKeyChecking=no" -p ${REMOTE_SSH_PORT} root@${FOREIGN_IP}
+        echo -e "${YELLOW}[*] Attempting to copy SSH key... (Enter password if asked)${NC}"
+        ssh-copy-id -o "StrictHostKeyChecking=no" -p ${REMOTE_SSH_PORT} root@${FOREIGN_IP} || echo -e "${RED}Warning: Could not copy SSH key!${NC}"
         
         systemctl daemon-reload
         systemctl enable ssh-tunnel
-        systemctl restart ssh-tunnel
+        systemctl restart ssh-tunnel || echo -e "${RED}Failed to start service!${NC}"
         
-        echo -e "${GREEN}[✓] Tunnel Established On Port ${CONFIG_PORT} ${NC}"
+        echo -e "${GREEN}[✓] Setup process finished. Check status (Option 6) to confirm.${NC}"
         read -n 1 -s -r -p $'\nPress any key to return...'
         ;;
+        
       2) systemctl daemon-reload && systemctl restart ssh-tunnel; echo -e "${GREEN}[✓] Service Restart Successfully ${NC}"; sleep 1 ;;
       3) systemctl stop ssh-tunnel && systemctl disable ssh-tunnel; echo -e "${GREEN}[✓] Tunnel Stopped ${NC}"; sleep 1 ;;
       4) 
@@ -188,15 +188,16 @@ EOF
         ;;
       5)
         echo -e "\n${RED}[*] Uninstalling AutoSSH Tunnel... ${NC}"
-        systemctl stop ssh-tunnel.service 2>/dev/null
-        systemctl disable ssh-tunnel.service 2>/dev/null
         
-        rm -f /etc/systemd/system/ssh-tunnel.service
+        systemctl stop ssh-tunnel.service 2>/dev/null || true
+        systemctl disable ssh-tunnel.service 2>/dev/null || true
         
-        systemctl daemon-reload
-        systemctl reset-failed
+        rm -f /etc/systemd/system/ssh-tunnel.service || true
         
-        pkill -f autossh 2>/dev/null
+        systemctl daemon-reload || true
+        systemctl reset-failed || true
+        
+        pkill -f autossh 2>/dev/null || true
         
         echo -e "${GREEN}[✓] Tunnel Uninstalled Completely ${NC}"
         sleep 2
