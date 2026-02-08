@@ -127,7 +127,6 @@ case $ash_choice in
         read -p "Foreign SSH Port (e.g., 22): " REMOTE_SSH_PORT
         read -p "Config Port (e.g., 2083): " CONFIG_PORT
 
-        # پاکسازی سوکت‌های قدیمی و توقف سرویس قبلی
         rm -f ~/.ssh/ssh-* 2>/dev/null
         systemctl stop ssh-tunnel 2>/dev/null || true
         systemctl disable ssh-tunnel 2>/dev/null || true
@@ -136,7 +135,6 @@ case $ash_choice in
             apt update && apt install -y autossh
         fi
 
-        # ایجاد فایل سرویس
         cat <<EOF | sudo tee /etc/systemd/system/ssh-tunnel.service > /dev/null
 [Unit]
 Description=AutoSSH Tunnel
@@ -153,7 +151,6 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-        # تنظیم Multiplexing بدون فاصله اضافی و بدون تکرار
         mkdir -p ~/.ssh
         chmod 700 ~/.ssh
         if ! grep -q "ControlMaster auto" ~/.ssh/config 2>/dev/null; then
@@ -168,7 +165,6 @@ Host *
 EOC
         fi
         
-        # تولید کلید در صورت عدم وجود
         if [ ! -f ~/.ssh/id_rsa ]; then
             ssh-keygen -t rsa -b 2048 -N "" -f ~/.ssh/id_rsa
         fi
@@ -210,6 +206,8 @@ EOC
       7) break ;;
       *) echo "Invalid option"; sleep 1 ;;
     esac
+    done
+} 
 # --- 01. Setup Firewall ---
 function setup_firewall() {
   echo -e "\n\033[1;33m[*] Setting up Firewall...\033[0m"
@@ -224,17 +222,13 @@ function setup_firewall() {
 
 function install_bbr() {
   echo "Optimizing network with BBR..."
-  
   if ! grep -q "net.core.default_qdisc=fq" /etc/sysctl.conf; then
     echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf
   fi
-
   if ! grep -q "net.ipv4.tcp_congestion_control=bbr" /etc/sysctl.conf; then
     echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
   fi
-
   sysctl -p
-  
   echo "BBR Optimization Applied Successfully!"
   read -n 1 -s -r -p $'\nPress any key to return'
 }
