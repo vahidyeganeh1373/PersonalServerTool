@@ -105,7 +105,6 @@ function pasarguard_node_menu() {
 }
 
 # --- 10. Auto SSH Tunnel Function ---
-# --- 10. Auto SSH Tunnel Function ---
 function auto_ssh_tunnel_menu() {
   while true; do
     clear
@@ -211,11 +210,21 @@ function setup_firewall() {
   read -n 1 -s -r -p $'\033[1;35m\n[✓] Done. Press any key to return\033[0m'
 }
 
-# --- 02 & 03. Optimization ---
 function install_bbr() {
-  wget -N --no-check-certificate https://github.com/teddysun/across/raw/master/bbr.sh && chmod +x bbr.sh && bash bbr.sh
+  echo "Optimizing network with BBR..."
+  
+  if ! grep -q "net.core.default_qdisc=fq" /etc/sysctl.conf; then
+    echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf
+  fi
+
+  if ! grep -q "net.ipv4.tcp_congestion_control=bbr" /etc/sysctl.conf; then
+    echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
+  fi
+
+  sysctl -p
+  
+  echo "BBR Optimization Applied Successfully!"
   read -n 1 -s -r -p $'\nPress any key to return'
-  rm -f bbr.sh
 }
 
 function optimize_network() {
