@@ -134,6 +134,7 @@ case $ash_choice in
         pkill -9 autossh 2>/dev/null || true
         fuser -k ${CONFIG_PORT}/tcp 2>/dev/null || true
         rm -f ~/.ssh/ssh-* 2>/dev/null
+        rm -f /tmp/ssh-mux 2>/dev/null
 
         if ! command -v autossh &> /dev/null; then
             apt update && apt install -y autossh
@@ -149,13 +150,19 @@ Type=simple
 User=root
 Environment="AUTOSSH_GATETIME=0"
 Environment="AUTOSSH_POLL=30"
+ExecStartPre=/usr/bin/rm -f /tmp/ssh-mux
 ExecStart=/usr/bin/autossh -M 0 -g \\
     -o "StrictHostKeyChecking=no" \\
     -o "UserKnownHostsFile=/dev/null" \\
+    -o "ControlMaster=auto" \\
+    -o "ControlPath=/tmp/ssh-mux" \\
+    -o "ControlPersist=4h" \\
+    -o "ServerAliveInterval=20" \\
+    -o "ServerAliveCountMax=3" \\
     -o "Cipher=chacha20-poly1305@openssh.com" \\
-    -o "ServerAliveInterval 15" \\
-    -o "ServerAliveCountMax 3" \\
-    -p ${REMOTE_SSH_PORT} -L 0.0.0.0:${CONFIG_PORT}:127.0.0.1:${CONFIG_PORT} root@${FOREIGN_IP} sleep infinity
+    -p \${REMOTE_SSH_PORT} \\
+    -L 0.0.0.0:\${CONFIG_PORT}:127.0.0.1:\${CONFIG_PORT} \\
+    root@\${FOREIGN_IP} "sleep infinity"
 Restart=always
 RestartSec=5
 
@@ -165,17 +172,6 @@ EOF
 
         mkdir -p ~/.ssh
         chmod 700 ~/.ssh
-        if ! grep -q "ControlMaster auto" ~/.ssh/config 2>/dev/null; then
-            echo -e "${YELLOW}[*] Adding Multiplexing Configs... ${NC}"
-            cat <<EOC >> ~/.ssh/config
-Host *
-    ControlMaster auto
-    ControlPath ~/.ssh/ssh-%r@%h:%p
-    ControlPersist 4h
-    ServerAliveInterval 20
-    ServerAliveCountMax 3
-EOC
-        fi
         
         if [ ! -f ~/.ssh/id_rsa ]; then
             ssh-keygen -t rsa -b 2048 -N "" -f ~/.ssh/id_rsa
@@ -210,6 +206,7 @@ EOC
         
         rm -f /etc/systemd/system/ssh-tunnel.service || true
         rm -f ~/.ssh/ssh-* || true 
+        rm -f /tmp/ssh-mux 2>/dev/null
   
         systemctl daemon-reload || true
         echo -e "${GREEN}[✓] Done ${NC}"; sleep 2 
