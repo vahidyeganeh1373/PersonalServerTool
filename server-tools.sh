@@ -145,6 +145,8 @@ Description=AutoSSH Tunnel
 After=network.target
 
 [Service]
+Type=simple
+User=root
 Environment="AUTOSSH_GATETIME=0"
 Environment="AUTOSSH_POLL=30"
 ExecStart=/usr/bin/autossh -M 0 -g \\
@@ -153,8 +155,7 @@ ExecStart=/usr/bin/autossh -M 0 -g \\
     -o "Cipher=chacha20-poly1305@openssh.com" \\
     -o "ServerAliveInterval 15" \\
     -o "ServerAliveCountMax 3" \\
-    -o "ExitOnForwardFailure=yes" \\
-    -p ${REMOTE_SSH_PORT} -N -L 0.0.0.0:${CONFIG_PORT}:127.0.0.1:${CONFIG_PORT} root@${FOREIGN_IP}
+    -p ${REMOTE_SSH_PORT} -L 0.0.0.0:${CONFIG_PORT}:127.0.0.1:${CONFIG_PORT} root@${FOREIGN_IP} sleep infinity
 Restart=always
 RestartSec=5
 
