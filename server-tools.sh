@@ -120,28 +120,23 @@ function auto_ssh_tunnel_menu() {
     echo "7. Main Menu"
     echo "-------------------------------"
     read -p "Select an option [1-7]: " ash_choice
-
-    case $ash_choice in
+case $ash_choice in
       1)
         echo -e "\n${YELLOW}[*] Setting up AutoSSH... ${NC}"
         read -p "Foreign IP: " FOREIGN_IP
         read -p "Foreign SSH Port (e.g., 22): " REMOTE_SSH_PORT
         read -p "Config Port (e.g., 2083): " CONFIG_PORT
-        
+
+        # پاکسازی سوکت‌های قدیمی و توقف سرویس قبلی
+        rm -f ~/.ssh/ssh-* 2>/dev/null
         systemctl stop ssh-tunnel 2>/dev/null || true
         systemctl disable ssh-tunnel 2>/dev/null || true
-        rm -f /etc/systemd/system/ssh-tunnel.service || true
-        
-        mkdir -p /root/.ssh
-        touch /root/.ssh/known_hosts
-        chmod 700 /root/.ssh
-        
-        ssh-keygen -f "/root/.ssh/known_hosts" -R "$FOREIGN_IP" 2>/dev/null || true
         
         if ! command -v autossh &> /dev/null; then
             apt update && apt install -y autossh
         fi
 
+        # ایجاد فایل سرویس
         cat <<EOF | sudo tee /etc/systemd/system/ssh-tunnel.service > /dev/null
 [Unit]
 Description=AutoSSH Tunnel
@@ -150,7 +145,7 @@ After=network.target
 [Service]
 Environment="AUTOSSH_GATETIME=0"
 Environment="AUTOSSH_POLL=30"
-ExecStart=/usr/bin/autossh -M 0 -g -o "ServerAliveInterval 15" -o "ServerAliveCountMax 3" -o "StrictHostKeyChecking=no" -o "ExitOnForwardFailure=yes" -p ${REMOTE_SSH_PORT} -N -L 0.0.0.0:${CONFIG_PORT}:127.0.0.1:${CONFIG_PORT} root@${FOREIGN_IP}
+ExecStart=/usr/bin/autossh -M 0 -g -o "ServerAliveInterval 15" -o "ServerAliveCountMax 3" -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null" -o "ExitOnForwardFailure=yes" -o "Cipher=chacha20-poly1305@openssh.com" -o "IPQoS=throughput" -p ${REMOTE_SSH_PORT} -N -L 0.0.0.0:${CONFIG_PORT}:127.0.0.1:${CONFIG_PORT} root@${FOREIGN_IP}
 Restart=always
 RestartSec=5
 
@@ -158,12 +153,28 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
+        # تنظیم Multiplexing بدون فاصله اضافی و بدون تکرار
+        mkdir -p ~/.ssh
+        chmod 700 ~/.ssh
+        if ! grep -q "ControlMaster auto" ~/.ssh/config 2>/dev/null; then
+            echo -e "${YELLOW}[*] Adding Multiplexing Configs... ${NC}"
+            cat <<EOC >> ~/.ssh/config
+Host *
+    ControlMaster auto
+    ControlPath ~/.ssh/ssh-%r@%h:%p
+    ControlPersist 4h
+    ServerAliveInterval 20
+    ServerAliveCountMax 3
+EOC
+        fi
+        
+        # تولید کلید در صورت عدم وجود
         if [ ! -f ~/.ssh/id_rsa ]; then
             ssh-keygen -t rsa -b 2048 -N "" -f ~/.ssh/id_rsa
         fi
         
         echo -e "${YELLOW}[*] Attempting to copy SSH key... (Enter password if asked)${NC}"
-        ssh-copy-id -o "StrictHostKeyChecking=no" -p ${REMOTE_SSH_PORT} root@${FOREIGN_IP} || echo -e "${RED}Warning: Could not copy SSH key!${NC}"
+        ssh-copy-id -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null" -p ${REMOTE_SSH_PORT} root@${FOREIGN_IP} || echo -e "${RED}Warning: Could not copy SSH key!${NC}"
         
         systemctl daemon-reload
         systemctl enable ssh-tunnel
@@ -187,17 +198,18 @@ EOF
         systemctl stop ssh-tunnel.service 2>/dev/null || true
         systemctl disable ssh-tunnel.service 2>/dev/null || true
         rm -f /etc/systemd/system/ssh-tunnel.service || true
+        rm -f ~/.ssh/config || true
+        rm -f ~/.ssh/ssh-* || true
         systemctl daemon-reload || true
-        pkill -f autossh 2>/dev/null || true
-        echo -e "${GREEN}[✓] Done ${NC}"; sleep 2 ;;
+        pkill -9 autossh 2>/dev/null || true
+        echo -e "${GREEN}[✓] Done ${NC}"; sleep 2 
+        ;;
       6) 
         systemctl status ssh-tunnel --no-pager
         read -n 1 -s -r -p $'\nPress any key to return...' ;;
       7) break ;;
       *) echo "Invalid option"; sleep 1 ;;
     esac
-  done
-}
 # --- 01. Setup Firewall ---
 function setup_firewall() {
   echo -e "\n\033[1;33m[*] Setting up Firewall...\033[0m"
