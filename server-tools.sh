@@ -105,11 +105,12 @@ function pasarguard_node_menu() {
 }
 
 # --- 10. Auto SSH Tunnel Function ---
+# --- 10. Auto SSH Tunnel Function ---
 function auto_ssh_tunnel_menu() {
   while true; do
     clear
     echo "==============================="
-    echo -e "${PURPLE}       Auto SSH Tunnel        ${NC}"
+    echo -e "${PURPLE}        Auto SSH Tunnel         ${NC}"
     echo "==============================="
     echo "1. Install / ReConfig"
     echo "2. Restart Service"
@@ -120,9 +121,9 @@ function auto_ssh_tunnel_menu() {
     echo "7. Main Menu"
     echo "-------------------------------"
     read -p "Select an option [1-7]: " ash_choice
-    
+
     case $ash_choice in
-        1)
+      1)
         echo -e "\n${YELLOW}[*] Setting up AutoSSH... ${NC}"
         read -p "Foreign IP: " FOREIGN_IP
         read -p "Foreign SSH Port (e.g., 22): " REMOTE_SSH_PORT
@@ -142,7 +143,6 @@ function auto_ssh_tunnel_menu() {
             apt update && apt install -y autossh
         fi
 
-        # نوشتن فایل سرویس
         cat <<EOF | sudo tee /etc/systemd/system/ssh-tunnel.service > /dev/null
 [Unit]
 Description=AutoSSH Tunnel
@@ -170,65 +170,35 @@ EOF
         systemctl enable ssh-tunnel
         systemctl restart ssh-tunnel || echo -e "${RED}Failed to start service!${NC}"
         
-        echo -e "${GREEN}[✓] Setup process finished. Check status (Option 6) to confirm.${NC}"
+        echo -e "${GREEN}[✓] Setup process finished.${NC}"
         read -n 1 -s -r -p $'\nPress any key to return...'
         ;;
         
-      2) systemctl daemon-reload && systemctl restart ssh-tunnel; echo -e "${GREEN}[✓] Service Restart Successfully ${NC}"; sleep 1 ;;
+      2) systemctl daemon-reload && systemctl restart ssh-tunnel; echo -e "${GREEN}[✓] Service Restarted ${NC}"; sleep 1 ;;
       3) systemctl stop ssh-tunnel && systemctl disable ssh-tunnel; echo -e "${GREEN}[✓] Tunnel Stopped ${NC}"; sleep 1 ;;
       4) 
         if [ -f /etc/systemd/system/ssh-tunnel.service ]; then
             nano /etc/systemd/system/ssh-tunnel.service
-            echo -e "${YELLOW}[!] Reloading Systemd For Changes... ${NC}"
-            systemctl daemon-reload
-            systemctl restart ssh-tunnel
-            echo -e "${GREEN}[✓] Service Updated And Restarted ${NC}"
+            systemctl daemon-reload && systemctl restart ssh-tunnel
         else
-            echo -e "${RED}[!] Tunnel Service Not Found. Install First ${NC}"
-        fi
-        sleep 2
-        ;;
+            echo -e "${RED}[!] Service Not Found ${NC}"; sleep 2
+        fi ;;
       5)
-        echo -e "\n${RED}[*] Uninstalling AutoSSH Tunnel... ${NC}"
-        
+        echo -e "\n${RED}[*] Uninstalling... ${NC}"
         systemctl stop ssh-tunnel.service 2>/dev/null || true
         systemctl disable ssh-tunnel.service 2>/dev/null || true
-        
         rm -f /etc/systemd/system/ssh-tunnel.service || true
-        
         systemctl daemon-reload || true
-        systemctl reset-failed || true
-        
         pkill -f autossh 2>/dev/null || true
-        
-        echo -e "${GREEN}[✓] Tunnel Uninstalled Completely ${NC}"
-        sleep 2
-        ;;
- 
+        echo -e "${GREEN}[✓] Done ${NC}"; sleep 2 ;;
       6) 
-        echo -e "\n${YELLOW}[*] Checking Tunnel Status...${NC}"
-        systemctl is-active --quiet ssh-tunnel && echo -e "Service: ${GREEN} Active (Running) ${NC}" || echo -e "Service: ${RED} Inactive (Stopped) ${NC}"
-        
-        echo -e "\n${YELLOW}[*] Recent Connection Logs:${NC}"
-        echo "-------------------------------"
-        journalctl -u ssh-tunnel -n 10 --no-hostname --no-pager
-        
-        echo -e "\n${YELLOW}[*] Active Network Connection:${NC}"
-        if ss -antp | grep -q "autossh" || ss -antp | grep -q "ssh"; then
-            ss -antp | grep -E "autossh|ssh" | grep "ESTAB" | awk '{print $5, $6}'
-            echo -e "${GREEN}[✓] Connection Is Live And Established ${NC}"
-        else
-            echo -e "${RED}[!] NO active Connection Found. Check Your Foreign IP/Port ${NC}"
-        fi
-        
-        echo "-------------------------------"
-        read -n 1 -s -r -p $'\nPress any key to return...'
-        ;;  
-        7) break ;;
+        systemctl status ssh-tunnel --no-pager
+        read -n 1 -s -r -p $'\nPress any key to return...' ;;
+      7) break ;;
+      *) echo "Invalid option"; sleep 1 ;;
     esac
   done
 }
-
 # --- 01. Setup Firewall ---
 function setup_firewall() {
   echo -e "\n\033[1;33m[*] Setting up Firewall...\033[0m"
