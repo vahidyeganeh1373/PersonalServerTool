@@ -23,7 +23,8 @@ function pasarguard_node_menu() {
     echo "1. Install"
     echo "2. Change core version"
     echo "3. Renew Cert"
-    echo "4. Back to MainMenu"
+    echo "4. Edit Docker Config"
+    echo "5. Back to MainMenu"
     echo "-------------------------------"
     read -p "Select an option [1-4]: " pg_choice
 
@@ -82,9 +83,23 @@ function pasarguard_node_menu() {
         fi
         read -n 1 -s -r -p $'\nPress any key to return...'
         ;;
-
-      4) break ;;
-      *) echo "Invalid option"; sleep 1 ;;
+        
+      4)
+        if [ -f /opt/pg-node/docker-compose.yml ]; then
+            echo -e "${YELLOW}[*] Opening Docker-Compose.yml... ${NC}"
+            sleep 1
+            nano /opt/pg-node/docker-compose.yml
+            
+            echo -e "${YELLOW}[*] Restarting Pg-Node To Apply Changes... ${NC}"
+            pg-node restart
+            echo -e "${GREEN}[✓] Done.${NC}"
+        else
+            echo -e "${RED}[!] Error: Configuration File Not Found ${NC}"
+        fi
+        read -n 1 -s -r -p $'\nPress any key to return...'
+        ;;
+      5) break ;;
+      *) echo "Invalid Option"; sleep 1 ;;
     esac
   done
 }
