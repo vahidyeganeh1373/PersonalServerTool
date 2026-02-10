@@ -416,7 +416,11 @@ function GostMenu() {
     echo "==============================="
     echo "1. Install / Update Core"
     echo "2. Enable / Restart"
-    echo "3. Return"
+    echo "3. Disable"
+    echo "4. Status"
+    echo "5. Uninstall"
+    echo "6. Show Logs"
+    echo "7. Return"
     read -p "Choice: " gost_choice
     case $gost_choice in
       1) if systemctl list-unit-files | grep -q gost.service; then sudo systemctl stop gost || true; fi
@@ -449,9 +453,14 @@ User=root
 WantedBy=multi-user.target
 EOF
          else
-           echo "--- Installing SSL Certificate for $G_DOMAIN ---"
+         
+            echo "--- Installing SSL Certificate for $G_DOMAIN ---"
+           
             apt update && apt install curl socat -y
-            curl https://get.acme.sh | sh -s email=vahidyeganeh1373@gmail.com
+
+            RANDOM_EMAIL="gost_$(date +%s | cut -b6-10)@gmail.com"
+            
+            curl https://get.acme.sh | sh -s email=$RANDOM_EMAIL
             
             ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt
             
@@ -483,11 +492,33 @@ EOF
          
          sudo systemctl daemon-reload && sudo systemctl enable gost && sudo systemctl restart gost
          echo "==============================="
-         echo "✅ Done! Gost is running."
+         echo "✅ Done! Gost Is Running"
          read -p "Press any key to continue..." -n1 ;;
          
-      2) sudo systemctl restart gost; read -p "Restarted..." -n1 ;;
-      3) break ;;
+      2) sudo systemctl restart gost; read -p "Gost Restarted..." -n1 ;;
+
+      3) sudo systemctl stop gost && sudo systemctl disable gost
+         echo "🛑 Gost Disabled Successfully"
+         read -p "Press any key to continue..." -n1 ;;
+
+      4) clear
+         echo "--- Gost Service Status ---"
+         sudo systemctl status gost
+         echo "---------------------------"
+         read -p "Press any key to continue..." -n1 ;;
+
+      5) sudo systemctl stop gost && sudo systemctl disable gost
+         sudo rm /usr/lib/systemd/system/gost.service
+         sudo rm -rf /usr/local/bin/gost
+         sudo systemctl daemon-reload
+         echo -e "${RED}❌ Gost Uninstalled Successfully.${NC}"
+         read -p "Press any key to continue..." -n1 ;;
+      
+      6) clear
+         echo "Press Ctrl+C to exit logs..."
+         journalctl -u gost -f ;;
+         
+      7) break ;;
     esac
   done
 }
