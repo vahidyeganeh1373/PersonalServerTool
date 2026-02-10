@@ -570,15 +570,15 @@ function main_menu() {
     read -p "Enter your choice: " choice
 
     case $choice in
-      01|1) setup_firewall ;;
-      02|2) install_bbr ;;
-      03|3) optimize_network ;;
-      04|4) change_ssh_port ;;
-      05|5) change_root_password ;;
-      06|6) install_marzban_node ;;
-      07|7) Backhual ;;
-      08|8) GostMenu ;;
-      09|9) lena_tunnel ;;
+      1) setup_firewall ;;
+      2) install_bbr ;;
+      3) optimize_network ;;
+      4) change_ssh_port ;;
+      5) change_root_password ;;
+      6) install_marzban_node ;;
+      7) Backhual ;;
+      8) GostMenu ;;
+      9) lena_tunnel ;;
       10) auto_ssh_tunnel_menu ;;
       11) pasarguard_node_menu ;;
       12) enable_root_login ;;
