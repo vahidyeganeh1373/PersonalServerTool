@@ -411,31 +411,34 @@ function Backhual() {
 function GostMenu() {
   while true; do
     clear
-    echo "==============================="
-    echo "         GOST Menu             "
-    echo "==============================="
-    echo "1. Install / Update Core"
-    echo "2. Enable / Restart"
+    echo -e "${YELLOW}===============================${NC}"
+    echo -e "${YELLOW}         GOST Menu             ${NC}"
+    echo -e "${YELLOW}===============================${NC}"
+    echo "1. Install"
+    echo "2. Restart"
     echo "3. Disable"
-    echo "4. Status"
-    echo "5. Uninstall"
-    echo "6. Show Logs"
-    echo "7. Return"
+    echo "4. Edit Config"
+    echo "5. Status"
+    echo "6. Uninstall"
+    echo "7. Show Logs"
+    echo "8. Return"
     read -p "Choice: " gost_choice
     case $gost_choice in
+    
       1) if systemctl list-unit-files | grep -q gost.service; then sudo systemctl stop gost || true; fi
          rm -rf /usr/local/bin/gost && wget https://github.com/go-gost/gost/releases/download/v3.2.6/gost_3.2.6_linux_amd64.tar.gz
          mkdir -p /usr/local/bin/gost && tar -xvzf gost_3.2.6_linux_amd64.tar.gz -C /usr/local/bin/gost/
-echo "--------------------------------"
-         echo "1. Iran"
-         echo "2. Foreign"
-         echo "Choose Number 1 Or 2 ?"
-         read -p "Region: " region_choice
-         read -p "Tunnel Port (e.g. 443): " T_PORT
-         read -p "Config Port (e.g. 2083): " C_PORT
-         read -p "GOST Username: " G_USER
-         read -p "GOST Password: " G_PASS
-         read -p "Foreign Domain (e.g. speed.mrmobileyzd.com): " G_DOMAIN
+         
+echo -e "${YELLOW}--------------------------------${NC}"
+         echo -e "${YELLOW}Select Server Side${NC}"
+         echo -e "${YELLOW}1.Iran${NC}"
+         echo -e "${YELLOW}2.Foreign${NC}"
+         read -p "$(echo -e "${YELLOW}Choose Number 1 Or 2? ${NC}")" region_choice
+         read -p "$(echo -e "${YELLOW}Tunnel Port (e.g. 443): ${NC}")" T_PORT
+         read -p "$(echo -e "${YELLOW}Config Port (e.g. 2083): ${NC}")" C_PORT
+         read -p "$(echo -e "${YELLOW}GOST Username: ${NC}")" G_USER
+         read -p "$(echo -e "${YELLOW}GOST Password: ${NC}")" G_PASS
+         read -p "$(echo -e "${YELLOW}Foreign Domain (e.g. speed.domain.com): ${NC}")" G_DOMAIN
          
          if [ "$region_choice" = "1" ]; then
             cat <<EOF | sudo tee /usr/lib/systemd/system/gost.service > /dev/null
@@ -453,27 +456,26 @@ User=root
 WantedBy=multi-user.target
 EOF
          else
-         
-            echo "--- Installing SSL Certificate for $G_DOMAIN ---"
-           
-            apt update && apt install curl socat -y
+            CERT_PATH="/var/lib/mygost/certs/${G_DOMAIN}.cer"
+            KEY_PATH="/var/lib/mygost/certs/${G_DOMAIN}.cer.key"
 
-            RANDOM_EMAIL="gost_$(date +%s | cut -b6-10)@gmail.com"
+            if [ -f "$CERT_PATH" ] && [ -f "$KEY_PATH" ]; then
+                echo -e "${BLUE}✅ Existing Certificate Found For $G_DOMAIN. Skipping SSL issuance.${NC}"
+            else
+                echo -e "${BLUE}--- Installing SSL Certificate for $G_DOMAIN ---${NC}"
+                command -v socat >/dev/null 2>&1 || { apt update -y >/dev/null 2>&1 && apt install curl socat -y >/dev/null 2>&1; }
+                RANDOM_EMAIL="gost_$(date +%s | cut -b6-10)@gmail.com"
+                curl -s https://get.acme.sh | sh -s email=$RANDOM_EMAIL --force >/dev/null 2>&1
+                ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt
+                
+                export DOMAIN="$G_DOMAIN"
+                mkdir -p /var/lib/mygost/certs
+                ~/.acme.sh/acme.sh \
+                  --issue --force --standalone -d "$G_DOMAIN" \
+                  --fullchain-file "/var/lib/mygost/certs/$G_DOMAIN.cer" \
+                  --key-file "/var/lib/mygost/certs/$G_DOMAIN.cer.key"
+            fi
             
-            curl https://get.acme.sh | sh -s email=$RANDOM_EMAIL
-            
-            ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt
-            
-            mkdir -p /var/lib/mygost/certs
-
-            export DOMAIN="$G_DOMAIN"
-            ~/.acme.sh/acme.sh \
-              --issue --force --standalone -d "$G_DOMAIN" \
-              --fullchain-file "/var/lib/mygost/certs/$G_DOMAIN.cer" \
-              --key-file "/var/lib/mygost/certs/$G_DOMAIN.cer.key"
-            
-            CERT_PATH="/var/lib/mygost/certs/$G_DOMAIN.cer"
-            KEY_PATH="/var/lib/mygost/certs/$G_DOMAIN.cer.key"
             cat <<EOF | sudo tee /usr/lib/systemd/system/gost.service > /dev/null
 [Unit]
 Description=GO Simple Tunnel
@@ -492,33 +494,44 @@ EOF
          
          sudo systemctl daemon-reload && sudo systemctl enable gost && sudo systemctl restart gost
          echo "==============================="
-         echo "✅ Done! Gost Is Running"
+         echo -e "${BLUE}✅ Done! Gost Is Running${NC}"
          read -p "Press any key to continue..." -n1 ;;
          
-      2) sudo systemctl restart gost; read -p "Gost Restarted..." -n1 ;;
+      2) sudo systemctl daemon-reload && sudo systemctl enable gost && sudo systemctl restart gost; read -p "Gost Restarted" -n1 ;;
 
       3) sudo systemctl stop gost && sudo systemctl disable gost
-         echo "🛑 Gost Disabled Successfully"
+         echo -e "${RED}🛑 Gost Disabled Successfully${NC}"
          read -p "Press any key to continue..." -n1 ;;
 
-      4) clear
-         echo "--- Gost Service Status ---"
+      4)
+         if [ -f "/usr/lib/systemd/system/gost.service" ]; then
+            nano /usr/lib/systemd/system/gost.service
+            echo -e "${YELLOW}Applying changes...${NC}"
+            sudo systemctl daemon-reload && sudo systemctl restart gost
+            echo -e "${BLUE}✅ Changes Applied And Service Restarted!${NC}"
+         else
+            echo -e "${RED}❌ Service File Not Found! Install First${NC}"
+         fi
+         read -p "Press any key to continue..." -n1 ;;
+
+      5) clear
+         echo -e "${YELLOW}Gost Service Status${NC}"
          sudo systemctl status gost
          echo "---------------------------"
          read -p "Press any key to continue..." -n1 ;;
 
-      5) sudo systemctl stop gost && sudo systemctl disable gost
+      6) sudo systemctl stop gost && sudo systemctl disable gost
          sudo rm /usr/lib/systemd/system/gost.service
          sudo rm -rf /usr/local/bin/gost
          sudo systemctl daemon-reload
-         echo -e "${RED}❌ Gost Uninstalled Successfully.${NC}"
+         echo -e "${RED}❌ Gost Uninstalled Successfully${NC}"
          read -p "Press any key to continue..." -n1 ;;
       
-      6) clear
+      7) clear
          echo "Press Ctrl+C to exit logs..."
          journalctl -u gost -f ;;
          
-      7) break ;;
+      8) break ;;
     esac
   done
 }
