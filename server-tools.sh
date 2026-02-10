@@ -435,10 +435,15 @@ echo -e "${YELLOW}--------------------------------${NC}"
          echo -e "${YELLOW}1.Iran${NC}"
          echo -e "${YELLOW}2.Foreign${NC}"
          read -p "$(echo -e "${YELLOW}Choose Number 1 Or 2? ${NC}")" region_choice
+         
          read -p "$(echo -e "${YELLOW}Tunnel Port (e.g. 443): ${NC}")" T_PORT
+         
          read -p "$(echo -e "${YELLOW}Config Port (e.g. 2083): ${NC}")" C_PORT
+         
          read -p "$(echo -e "${YELLOW}GOST Username: ${NC}")" G_USER
+         
          read -p "$(echo -e "${YELLOW}GOST Password: ${NC}")" G_PASS
+         
          read -p "$(echo -e "${YELLOW}Foreign Domain (e.g. speed.domain.com): ${NC}")" G_DOMAIN
          
          if [ "$region_choice" = "1" ]; then
