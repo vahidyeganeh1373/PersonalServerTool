@@ -422,7 +422,8 @@ function GostMenu() {
     echo "6. Uninstall"
     echo "7. Show Logs"
     echo "8. Return"
-    read -p "Choice: " gost_choice
+    
+    read -p "$(echo -e "${YELLOW}Choice: ${NC}")" gost_choice
     case $gost_choice in
     
       1) if systemctl list-unit-files | grep -q gost.service; then sudo systemctl stop gost || true; fi
