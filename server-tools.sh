@@ -414,35 +414,78 @@ function GostMenu() {
     echo "==============================="
     echo "         GOST Menu             "
     echo "==============================="
-    echo "1. Install / Update Core⬇️"
-    echo "2. Enable / Restart 🚀"
-    echo "3. Return 🔙"
+    echo "1. Install / Update Core"
+    echo "2. Enable / Restart"
+    echo "3. Return"
     read -p "Choice: " gost_choice
     case $gost_choice in
       1) if systemctl list-unit-files | grep -q gost.service; then sudo systemctl stop gost || true; fi
          rm -rf /usr/local/bin/gost && wget https://github.com/go-gost/gost/releases/download/v3.2.6/gost_3.2.6_linux_amd64.tar.gz
          mkdir -p /usr/local/bin/gost && tar -xvzf gost_3.2.6_linux_amd64.tar.gz -C /usr/local/bin/gost/
-         echo "1. Iran / 2. Kharej" && read -p "Region: " region_choice
+echo "--------------------------------"
+         echo "1. Iran"
+         echo "2. Foreign"
+         echo "Choose Number 1 Or 2 ?"
+         read -p "Region: " region_choice
+         read -p "Tunnel Port (e.g. 443): " T_PORT
+         read -p "Config Port (e.g. 2083): " C_PORT
+         read -p "GOST Username: " G_USER
+         read -p "GOST Password: " G_PASS
+         read -p "Foreign Domain (e.g. speed.mrmobileyzd.com): " G_DOMAIN
+         
          if [ "$region_choice" = "1" ]; then
-           cat <<EOF | sudo tee /usr/lib/systemd/system/gost.service > /dev/null
+            cat <<EOF | sudo tee /usr/lib/systemd/system/gost.service > /dev/null
 [Unit]
 Description=GO Simple Tunnel
+After=network.target
+Wants=network.target
+
 [Service]
-ExecStart=/usr/local/bin/gost/gost -L=tcp://:2095 -F forward+tcp://30.0.0.2:443
+ExecStart=/usr/local/bin/gost/gost -L "tcp://:${C_PORT}/127.0.0.1:${C_PORT}" -F "relay+wss://${G_USER}:${G_PASS}@${G_DOMAIN}:${T_PORT}?serverName=${G_DOMAIN}&path=/lib-stream&ping=10&retry=5&keepalive=true&ttl=60s&mux=true&conns=1"
+Restart=always
+User=root
+
 [Install]
 WantedBy=multi-user.target
 EOF
          else
-           cat <<EOF | sudo tee /usr/lib/systemd/system/gost.service > /dev/null
+           echo "--- Installing SSL Certificate for $G_DOMAIN ---"
+            apt update && apt install curl socat -y
+            curl https://get.acme.sh | sh -s email=vahidyeganeh1373@gmail.com
+            
+            ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt
+            
+            mkdir -p /var/lib/mygost/certs
+
+            export DOMAIN="$G_DOMAIN"
+            ~/.acme.sh/acme.sh \
+              --issue --force --standalone -d "$G_DOMAIN" \
+              --fullchain-file "/var/lib/mygost/certs/$G_DOMAIN.cer" \
+              --key-file "/var/lib/mygost/certs/$G_DOMAIN.cer.key"
+            
+            CERT_PATH="/var/lib/mygost/certs/$G_DOMAIN.cer"
+            KEY_PATH="/var/lib/mygost/certs/$G_DOMAIN.cer.key"
+            cat <<EOF | sudo tee /usr/lib/systemd/system/gost.service > /dev/null
 [Unit]
 Description=GO Simple Tunnel
+After=network.target
+Wants=network.target
+
 [Service]
-ExecStart=/usr/local/bin/gost/gost -L=tcp://:443/:2095
+ExecStart=/usr/local/bin/gost/gost -L "relay+wss://${G_USER}:${G_PASS}@:${T_PORT}/127.0.0.1:${C_PORT}?cert=${CERT_PATH}&key=${KEY_PATH}&path=/lib-stream"
+Restart=always
+User=root
+
 [Install]
 WantedBy=multi-user.target
 EOF
          fi
-         sudo systemctl daemon-reload && sudo systemctl enable gost && sudo systemctl restart gost; read -p "Done..." -n1 ;;
+         
+         sudo systemctl daemon-reload && sudo systemctl enable gost && sudo systemctl restart gost
+         echo "==============================="
+         echo "✅ Done! Gost is running."
+         read -p "Press any key to continue..." -n1 ;;
+         
       2) sudo systemctl restart gost; read -p "Restarted..." -n1 ;;
       3) break ;;
     esac
