@@ -412,7 +412,7 @@ function GostMenu() {
   while true; do
     clear
     echo -e "${YELLOW}===============================${NC}"
-    echo -e "${YELLOW}         GOST Menu             ${NC}"
+    echo -e "${YELLOW}           GOST Menu           ${NC}"
     echo -e "${YELLOW}===============================${NC}"
     echo ""
     echo "1. Install"
@@ -424,6 +424,7 @@ function GostMenu() {
     echo "7. Show Logs"
     echo ""
     echo "8. Return"
+    echo ""
     
     read -p "$(echo -e "${YELLOW}Choice: ${NC}")" gost_choice
     case $gost_choice in
@@ -434,20 +435,21 @@ function GostMenu() {
          
          echo -e "${YELLOW}--------------------------------${NC}"
          echo -e "${YELLOW}Select Server Side${NC}"
+         echo ""
          echo -e "${YELLOW}1.Iran${NC}"
          echo -e "${YELLOW}2.Foreign${NC}"
          read -p "$(echo -e "${YELLOW}Choose Number 1 Or 2? ${NC}")" region_choice
-         
+         echo ""
          read -p "$(echo -e "${YELLOW}Tunnel Port (e.g. 443): ${NC}")" T_PORT
-         
+         echo ""
          read -p "$(echo -e "${YELLOW}Config Port (e.g. 2083): ${NC}")" C_PORT
-         
+         echo ""
          read -p "$(echo -e "${YELLOW}GOST Username: ${NC}")" G_USER
-         
+         echo ""
          read -p "$(echo -e "${YELLOW}GOST Password: ${NC}")" G_PASS
-         
+         echo ""
          read -p "$(echo -e "${YELLOW}Foreign Domain (e.g. speed.domain.com): ${NC}")" G_DOMAIN
-
+         echo ""
          if command -v ufw >/dev/null 2>&1; then
             sudo ufw allow "$T_PORT"/tcp >/dev/null 2>&1
             sudo ufw allow "$C_PORT"/tcp >/dev/null 2>&1
