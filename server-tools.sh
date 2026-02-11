@@ -427,13 +427,14 @@ function GostMenu() {
     echo ""
     
     read -p "$(echo -e "${YELLOW}Choice: ${NC}")" gost_choice
+    echo ""
     case $gost_choice in
     
       1) if systemctl list-unit-files | grep -q gost.service; then sudo systemctl stop gost || true; fi
          rm -rf /usr/local/bin/gost && wget https://github.com/go-gost/gost/releases/download/v3.2.6/gost_3.2.6_linux_amd64.tar.gz
          mkdir -p /usr/local/bin/gost && tar -xvzf gost_3.2.6_linux_amd64.tar.gz -C /usr/local/bin/gost/
          
-         echo -e "${YELLOW}--------------------------------${NC}"
+         echo -e "${YELLOW}===============================${NC}"
          echo ""
          read -p "$(echo -e "${YELLOW}Select Server Side | Iran=1 , Foreign=2 | (e.g. 2)? ${NC}")" region_choice
          echo ""
@@ -446,7 +447,6 @@ function GostMenu() {
          read -p "$(echo -e "${YELLOW}GOST Password: ${NC}")" G_PASS
          echo ""
          read -p "$(echo -e "${YELLOW}Foreign Domain (e.g. speed.domain.com): ${NC}")" G_DOMAIN
-         echo ""
          if command -v ufw >/dev/null 2>&1; then
             sudo ufw allow "$T_PORT"/tcp >/dev/null 2>&1
             sudo ufw allow "$C_PORT"/tcp >/dev/null 2>&1
@@ -511,8 +511,11 @@ EOF
          fi
          
          sudo systemctl daemon-reload && sudo systemctl enable gost && sudo systemctl restart gost
-         echo "==============================="
-         echo -e "${BLUE}✅ Done! Gost Is Running${NC}"
+         echo ""
+         echo -e "${YELLOW}===============================${NC}"
+         echo ""
+         echo -e "${CYAN}✅ Done! Gost Is Running${NC}"
+         echo ""
          read -p "Press any key to continue..." -n1 ;;
          
       2) sudo systemctl daemon-reload && sudo systemctl enable gost && sudo systemctl restart gost; read -p "Gost Restarted" -n1 ;;
