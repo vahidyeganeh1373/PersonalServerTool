@@ -108,24 +108,30 @@ function pasarguard_node_menu() {
 function auto_ssh_tunnel_menu() {
   while true; do
     clear
-    echo "==============================="
-    echo -e "${PURPLE}        Auto SSH Tunnel         ${NC}"
-    echo "==============================="
+    echo -e "${YELLOW}===============================${NC}"
+    echo -e "${YELLOW}          AutoSSH Menu           ${NC}"
+    echo -e "${YELLOW}===============================${NC}"
+    echo ""
     echo "1. Install / ReConfig"
-    echo "2. Restart Service"
-    echo "3. Disable Tunnel"
-    echo "4. Edit Config"
-    echo "5. Uninstall / Delete"
-    echo "6. Service Status"
-    echo "7. Main Menu"
-    echo "-------------------------------"
-    read -p "Select an option [1-7]: " ash_choice
+    echo "2. Restart"
+    echo "3. Disable"
+    echo "4. Edit"
+    echo "5. Uninstall"
+    echo "6. Status"
+    echo ""
+    echo "7. Return"
+    echo ""
+    read -p "Choice: " ash_choice
 case $ash_choice in
       1)
         echo -e "\n${YELLOW}[*] Setting up AutoSSH... ${NC}"
-        read -p "Foreign IP: " FOREIGN_IP
-        read -p "Foreign SSH Port (e.g., 22): " REMOTE_SSH_PORT
-        read -p "Config Port (e.g., 2083): " CONFIG_PORT
+        echo ""
+        read -p "$(echo -e "${YELLOW}Foreign IP: ${NC}")" FOREIGN_IP
+        echo ""
+        read -p "$(echo -e "${YELLOW}Foreign SSH Port (e.g., 22): ${NC}")" REMOTE_SSH_PORT
+        echo ""
+        read -p "$(echo -e "${YELLOW}Config Port (e.g., 2083): ${NC}")" CONFIG_PORT
+        echo ""
 
         systemctl stop ssh-tunnel 2>/dev/null || true
         systemctl disable ssh-tunnel.service 2>/dev/null || true
@@ -149,7 +155,7 @@ After=network.target
 Type=simple
 User=root
 Environment="AUTOSSH_GATETIME=0"
-Environment="AUTOSSH_POLL=30"
+Environment="AUTOSSH_POLL=60"
 ExecStartPre=/usr/bin/rm -f /tmp/ssh-mux
 ExecStart=/usr/bin/autossh -M 0 -g \\
     -o "StrictHostKeyChecking=no" \\
@@ -157,9 +163,12 @@ ExecStart=/usr/bin/autossh -M 0 -g \\
     -o "ControlMaster=auto" \\
     -o "ControlPath=/tmp/ssh-mux" \\
     -o "ControlPersist=4h" \\
-    -o "Cipher=chacha20-poly1305@openssh.com" \\
-    -o "ServerAliveInterval 15" \\
+    -o "Cipher=aes128-ctr" \\
+    -o "KbdInteractiveAuthentication=no" \\
+    -o "PreferredAuthentications=publickey" \\
+    -o "ServerAliveInterval 12" \\
     -o "ServerAliveCountMax 3" \\
+    -o "TCPKeepAlive=yes" \\
     -p ${REMOTE_SSH_PORT} -L 0.0.0.0:${CONFIG_PORT}:127.0.0.1:${CONFIG_PORT} root@${FOREIGN_IP} sleep infinity
 Restart=always
 RestartSec=5
@@ -175,15 +184,15 @@ EOF
             ssh-keygen -t rsa -b 2048 -N "" -f ~/.ssh/id_rsa
         fi
         
-        echo -e "${YELLOW}[*] Attempting to copy SSH key... (Enter password if asked)${NC}"
+        echo -e "${YELLOW}[*] Attempting to copy SSH key... (Enter Password If Asked)${NC}"
         ssh-copy-id -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null" -p ${REMOTE_SSH_PORT} root@${FOREIGN_IP} || echo -e "${RED}Warning: Could not copy SSH key!${NC}"
         
         systemctl daemon-reload
         systemctl enable ssh-tunnel
         systemctl start ssh-tunnel
-        systemctl restart ssh-tunnel || echo -e "${RED}Failed to start service!${NC}"
+        systemctl restart ssh-tunnel || echo -e "${RED}Failed To Start Service!${NC}"
         
-        echo -e "${GREEN}[✓] Setup process finished.${NC}"
+        echo -e "${BLUE}✅ Done! AutoSSH Is Running${NC}"
         read -n 1 -s -r -p $'\nPress any key to return...'
         ;;
         
@@ -515,7 +524,7 @@ EOF
          echo ""
          echo -e "${YELLOW}===============================${NC}"
          echo ""
-         echo -e "${CYAN}✅ Done! Gost Is Running${NC}"
+         echo -e "${BLUE}✅ Done! Gost Is Running${NC}"
          echo ""
          read -p "Press any key to continue..." -n1 ;;
          
@@ -584,7 +593,7 @@ function main_menu() {
     echo -e "${CYAN}7)${NC} Backhual Tunnel (Premium)"
     echo -e "${CYAN}8)${NC} GOST Tunnel (Relay + WSS + MUX)"
     echo -e "${CYAN}9)${NC} Lena Tunnel"
-    echo -e "${CYAN}10)${NC} Auto "SSH + Cipher + Mux" Tunnel (Just Iran Side)"
+    echo -e "${CYAN}10)${NC} Auto "SSH + AES128-CTR + Mux" Tunnel (Just Iran Side)"
     echo -e "${CYAN}11)${NC} Pasarguard Node"
     echo -e "${CYAN}12)${NC} Enable Root Login"
     echo -e "${CYAN}0)${NC} Exit"
