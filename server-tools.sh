@@ -574,6 +574,7 @@ function main_menu() {
     echo -e "${YELLOW}===========================================${NC}"
     echo -e "${PURPLE}    Server IP : ${BLUE}$SERVER_IP${NC}"
     echo -e "${YELLOW}===========================================${NC}"
+    echo ""
     echo -e "${CYAN}1)${NC} Setup Firewall"
     echo -e "${CYAN}2)${NC} Install BBR"
     echo -e "${CYAN}3)${NC} Optimize Network"
@@ -586,8 +587,8 @@ function main_menu() {
     echo -e "${CYAN}10)${NC} Auto "SSH + Cipher + Mux" Tunnel (Just Iran Side)"
     echo -e "${CYAN}11)${NC} Pasarguard Node"
     echo -e "${CYAN}12)${NC} Enable Root Login"
-    echo ""
     echo -e "${CYAN}0)${NC} Exit"
+    echo ""
     echo -e "${YELLOW}===========================================${NC}"
     read -p "Enter your choice: " choice
 
