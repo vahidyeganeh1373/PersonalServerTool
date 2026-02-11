@@ -564,12 +564,12 @@ function lena_tunnel() {
 function main_menu() {
   while true; do
     clear
-    echo "==============================="
-    echo -e "${PURPLE}       Server Tools Menu       ${NC}"
-    echo -e "${PURPLE}        Version : $VERSION       ${NC}"
-    echo "==============================="
+    echo -e "${YELLOW}===========================================${NC}"
+    echo -e "${YELLOW}              Server Tools Menu       ${NC}"
+    echo -e "${YELLOW}              Version : $VERSION       ${NC}"
+    echo -e "${YELLOW}===========================================${NC}"
     echo -e "${PURPLE}    Server IP : ${BLUE}$SERVER_IP${NC}"
-    echo "==============================="
+    echo -e "${YELLOW}===========================================${NC}"
     echo -e "${CYAN}1)${NC} Setup Firewall"
     echo -e "${CYAN}2)${NC} Install BBR"
     echo -e "${CYAN}3)${NC} Optimize Network"
@@ -582,8 +582,9 @@ function main_menu() {
     echo -e "${CYAN}10)${NC} Auto "SSH + Cipher + Mux" Tunnel (Just Iran Side)"
     echo -e "${CYAN}11)${NC} Pasarguard Node"
     echo -e "${CYAN}12)${NC} Enable Root Login"
+    echo ""
     echo -e "${CYAN}0)${NC} Exit"
-    echo "-------------------------------"
+    echo -e "${YELLOW}===========================================${NC}"
     read -p "Enter your choice: " choice
 
     case $choice in
