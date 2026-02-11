@@ -414,7 +414,7 @@ function GostMenu() {
     echo -e "${YELLOW}===============================${NC}"
     echo -e "${YELLOW}         GOST Menu             ${NC}"
     echo -e "${YELLOW}===============================${NC}"
-    
+    echo ""
     echo "1. Install"
     echo "2. Restart"
     echo "3. Disable"
@@ -422,7 +422,7 @@ function GostMenu() {
     echo "5. Status"
     echo "6. Uninstall"
     echo "7. Show Logs"
-    
+    echo ""
     echo "8. Return"
     
     read -p "$(echo -e "${YELLOW}Choice: ${NC}")" gost_choice
