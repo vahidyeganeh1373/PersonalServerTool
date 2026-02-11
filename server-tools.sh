@@ -414,6 +414,7 @@ function GostMenu() {
     echo -e "${YELLOW}===============================${NC}"
     echo -e "${YELLOW}         GOST Menu             ${NC}"
     echo -e "${YELLOW}===============================${NC}"
+    
     echo "1. Install"
     echo "2. Restart"
     echo "3. Disable"
@@ -421,6 +422,7 @@ function GostMenu() {
     echo "5. Status"
     echo "6. Uninstall"
     echo "7. Show Logs"
+    
     echo "8. Return"
     
     read -p "$(echo -e "${YELLOW}Choice: ${NC}")" gost_choice
@@ -430,7 +432,7 @@ function GostMenu() {
          rm -rf /usr/local/bin/gost && wget https://github.com/go-gost/gost/releases/download/v3.2.6/gost_3.2.6_linux_amd64.tar.gz
          mkdir -p /usr/local/bin/gost && tar -xvzf gost_3.2.6_linux_amd64.tar.gz -C /usr/local/bin/gost/
          
-echo -e "${YELLOW}--------------------------------${NC}"
+         echo -e "${YELLOW}--------------------------------${NC}"
          echo -e "${YELLOW}Select Server Side${NC}"
          echo -e "${YELLOW}1.Iran${NC}"
          echo -e "${YELLOW}2.Foreign${NC}"
@@ -445,6 +447,13 @@ echo -e "${YELLOW}--------------------------------${NC}"
          read -p "$(echo -e "${YELLOW}GOST Password: ${NC}")" G_PASS
          
          read -p "$(echo -e "${YELLOW}Foreign Domain (e.g. speed.domain.com): ${NC}")" G_DOMAIN
+
+         if command -v ufw >/dev/null 2>&1; then
+            sudo ufw allow "$T_PORT"/tcp >/dev/null 2>&1
+            sudo ufw allow "$C_PORT"/tcp >/dev/null 2>&1
+            sudo ufw allow "$T_PORT"/udp >/dev/null 2>&1
+            sudo ufw allow "$C_PORT"/udp >/dev/null 2>&1
+         fi
          
          if [ "$region_choice" = "1" ]; then
             cat <<EOF | sudo tee /usr/lib/systemd/system/gost.service > /dev/null
@@ -462,6 +471,9 @@ User=root
 WantedBy=multi-user.target
 EOF
          else
+
+            command -v ufw >/dev/null 2>&1 && sudo ufw allow 80/tcp >/dev/null 2>&1
+            
             CERT_PATH="/var/lib/mygost/certs/${G_DOMAIN}.cer"
             KEY_PATH="/var/lib/mygost/certs/${G_DOMAIN}.cer.key"
 
