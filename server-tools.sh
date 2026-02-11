@@ -436,7 +436,8 @@ function GostMenu() {
          
          echo -e "${YELLOW}===============================${NC}"
          echo ""
-         read -p "$(echo -e "${YELLOW}Select Server Side | Iran=1 , Foreign=2 | (e.g. 2)? ${NC}")" region_choice
+         echo -e "${YELLOW}Please Choice Server Side${NC}"
+         read -p "$(echo -e "${YELLOW}Iran = 1 , Foreign = 2 | (e.g. 2):${NC}")" region_choice
          echo ""
          read -p "$(echo -e "${YELLOW}Tunnel Port (e.g. 443): ${NC}")" T_PORT
          echo ""
