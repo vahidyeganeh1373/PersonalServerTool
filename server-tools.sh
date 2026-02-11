@@ -434,11 +434,8 @@ function GostMenu() {
          mkdir -p /usr/local/bin/gost && tar -xvzf gost_3.2.6_linux_amd64.tar.gz -C /usr/local/bin/gost/
          
          echo -e "${YELLOW}--------------------------------${NC}"
-         echo -e "${YELLOW}Select Server Side${NC}"
          echo ""
-         echo -e "${YELLOW}1.Iran${NC}"
-         echo -e "${YELLOW}2.Foreign${NC}"
-         read -p "$(echo -e "${YELLOW}Choose Number 1 Or 2? ${NC}")" region_choice
+         read -p "$(echo -e "${YELLOW}Select Server Side | Iran=1 , Foreign=2 | (e.g. 2)? ${NC}")" region_choice
          echo ""
          read -p "$(echo -e "${YELLOW}Tunnel Port (e.g. 443): ${NC}")" T_PORT
          echo ""
@@ -480,9 +477,10 @@ EOF
             KEY_PATH="/var/lib/mygost/certs/${G_DOMAIN}.cer.key"
 
             if [ -f "$CERT_PATH" ] && [ -f "$KEY_PATH" ]; then
-                echo -e "${BLUE}✅ Existing Certificate Found For $G_DOMAIN. Skipping SSL issuance.${NC}"
+                echo -e "${CYAN}✅ Existing Certificate Found For $G_DOMAIN. Skipping SSL issuance.${NC}"
             else
-                echo -e "${BLUE}--- Installing SSL Certificate for $G_DOMAIN ---${NC}"
+                echo ""
+                echo -e "${CYAN}--- Installing SSL Certificate for $G_DOMAIN ---${NC}"
                 command -v socat >/dev/null 2>&1 || { apt update -y >/dev/null 2>&1 && apt install curl socat -y >/dev/null 2>&1; }
                 RANDOM_EMAIL="gost_$(date +%s | cut -b6-10)@gmail.com"
                 curl -s https://get.acme.sh | sh -s email=$RANDOM_EMAIL --force >/dev/null 2>&1
