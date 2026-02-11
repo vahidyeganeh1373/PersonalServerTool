@@ -579,9 +579,9 @@ function main_menu() {
     clear
     echo -e "${YELLOW}===========================================${NC}"
     echo -e "${YELLOW}              Server Tools Menu       ${NC}"
-    echo -e "${YELLOW}              Version : $VERSION       ${NC}"
+    echo -e "${YELLOW}               Version : $VERSION       ${NC}"
     echo -e "${YELLOW}===========================================${NC}"
-    echo -e "${PURPLE}    Server IP : ${BLUE}$SERVER_IP${NC}"
+    echo -e "${PURPLE}              Server IP : ${BLUE}$SERVER_IP${NC}"
     echo -e "${YELLOW}===========================================${NC}"
     echo ""
     echo -e "${CYAN}1)${NC} Setup Firewall"
