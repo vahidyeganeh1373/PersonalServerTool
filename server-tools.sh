@@ -136,7 +136,6 @@ case $ash_choice in
         systemctl stop ssh-tunnel 2>/dev/null || true
         systemctl disable ssh-tunnel.service 2>/dev/null || true
         rm -f /etc/systemd/system/ssh-tunnel.service || true
-        rm -f ~/.ssh/ssh-* || true 
 
 cat <<EOF | sudo tee /etc/systemd/system/ssh-tunnel.service > /dev/null
 [Unit]
@@ -150,9 +149,6 @@ ExecStart=/usr/bin/ssh -g -N \\
     -o "StrictHostKeyChecking=no" \\
     -o "UserKnownHostsFile=/dev/null" \\
     -o "FingerprintHash=sha256" \\
-    -o "ControlMaster=auto" \\
-    -o "ControlPath=/tmp/ssh-mux" \\
-    -o "ControlPersist=30m" \\
     -o "Ciphers=chacha20-poly1305@openssh.com" \\
     -o "Compression=yes" \\
     -o "KbdInteractiveAuthentication=no" \\
@@ -203,7 +199,6 @@ EOF
         systemctl disable ssh-tunnel.service 2>/dev/null || true
         
         rm -f /etc/systemd/system/ssh-tunnel.service || true
-        rm -f ~/.ssh/ssh-* || true 
   
         systemctl daemon-reload || true
         echo -e "${GREEN}[✓] Done ${NC}"; sleep 2 
