@@ -155,21 +155,24 @@ After=network.target
 Type=simple
 User=root
 Environment="AUTOSSH_GATETIME=0"
-Environment="AUTOSSH_POLL=60"
+Environment="AUTOSSH_POLL=120"
 ExecStartPre=/usr/bin/rm -f /tmp/ssh-mux
-ExecStart=/usr/bin/autossh -M 0 -g \\
+ExecStart=/usr/bin/autossh -M 0 -g -N \\
     -o "StrictHostKeyChecking=no" \\
     -o "UserKnownHostsFile=/dev/null" \\
+    -o "FingerprintHash=sha256" \\
     -o "ControlMaster=auto" \\
     -o "ControlPath=/tmp/ssh-mux" \\
     -o "ControlPersist=30m" \\
     -o "Ciphers=chacha20-poly1305@openssh.com" \\
+    -o "Compression=yes" \\
     -o "KbdInteractiveAuthentication=no" \\
     -o "PreferredAuthentications=publickey" \\
-    -o "ServerAliveInterval 26" \\
+    -o "ServerAliveInterval 25" \\
     -o "ServerAliveCountMax 3" \\
     -o "TCPKeepAlive=no" \\
-    -p ${REMOTE_SSH_PORT} -L 0.0.0.0:${CONFIG_PORT}:127.0.0.1:${CONFIG_PORT} root@${FOREIGN_IP} sleep infinity
+    -o "ExitOnForwardFailure=yes" \\
+    -p ${REMOTE_SSH_PORT} -L 0.0.0.0:${CONFIG_PORT}:127.0.0.1:${CONFIG_PORT} root@${FOREIGN_IP}
 Restart=always
 RestartSec=5
 
