@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION="0.3.1"
+VERSION="0.3.3"
 SERVER_IP=$(hostname -I | awk '{print $1}')
 
 # Colors
@@ -109,7 +109,7 @@ function auto_ssh_tunnel_menu() {
   while true; do
     clear
     echo -e "${YELLOW}===============================${NC}"
-    echo -e "${YELLOW}          AutoSSH Menu           ${NC}"
+    echo -e "${YELLOW}         SSH-Tunnel Menu           ${NC}"
     echo -e "${YELLOW}===============================${NC}"
     echo ""
     echo "1. Install / ReConfig"
@@ -139,7 +139,7 @@ case $ash_choice in
 
 cat <<EOF | sudo tee /etc/systemd/system/ssh-tunnel.service > /dev/null
 [Unit]
-Description=AutoSSH Tunnel
+Description=SSH-Tunnel
 After=network.target
 
 [Service]
