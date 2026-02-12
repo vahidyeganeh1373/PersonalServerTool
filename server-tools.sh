@@ -162,13 +162,13 @@ ExecStart=/usr/bin/autossh -M 0 -g \\
     -o "UserKnownHostsFile=/dev/null" \\
     -o "ControlMaster=auto" \\
     -o "ControlPath=/tmp/ssh-mux" \\
-    -o "ControlPersist=4h" \\
-    -o "Cipher=aes128-ctr" \\
+    -o "ControlPersist=30m" \\
+    -o "Ciphers=chacha20-poly1305@openssh.com" \\
     -o "KbdInteractiveAuthentication=no" \\
     -o "PreferredAuthentications=publickey" \\
-    -o "ServerAliveInterval 12" \\
+    -o "ServerAliveInterval 26" \\
     -o "ServerAliveCountMax 3" \\
-    -o "TCPKeepAlive=yes" \\
+    -o "TCPKeepAlive=no" \\
     -p ${REMOTE_SSH_PORT} -L 0.0.0.0:${CONFIG_PORT}:127.0.0.1:${CONFIG_PORT} root@${FOREIGN_IP} sleep infinity
 Restart=always
 RestartSec=5
