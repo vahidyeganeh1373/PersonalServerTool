@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION="1.3.0"
+VERSION="0.3.1"
 SERVER_IP=$(hostname -I | awk '{print $1}')
 
 # Colors
@@ -137,7 +137,7 @@ case $ash_choice in
         systemctl disable ssh-tunnel.service 2>/dev/null || true
         rm -f /etc/systemd/system/ssh-tunnel.service || true
 
-        pkill -9 autossh 2>/dev/null || true
+        pkill -x autossh 2>/dev/null || true
         fuser -k ${CONFIG_PORT}/tcp 2>/dev/null || true
         rm -f ~/.ssh/ssh-* 2>/dev/null
         rm -f /tmp/ssh-mux 2>/dev/null
@@ -146,7 +146,7 @@ case $ash_choice in
             apt update && apt install -y autossh
         fi
 
-        cat <<EOF | sudo tee /etc/systemd/system/ssh-tunnel.service > /dev/null
+cat <<EOF | sudo tee /etc/systemd/system/ssh-tunnel.service > /dev/null
 [Unit]
 Description=AutoSSH Tunnel
 After=network.target
