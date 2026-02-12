@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION="0.3.1"
+VERSION="0.3.0"
 SERVER_IP=$(hostname -I | awk '{print $1}')
 
 # Colors
@@ -134,13 +134,23 @@ case $ash_choice in
         echo ""
 
         systemctl stop ssh-tunnel 2>/dev/null || true
+        echo "1"
         systemctl disable ssh-tunnel.service 2>/dev/null || true
+        echo "2"
         rm -f /etc/systemd/system/ssh-tunnel.service || true
+        echo "3"
 
         pkill -x autossh 2>/dev/null || true
+        echo "4"
+
         fuser -k ${CONFIG_PORT}/tcp 2>/dev/null || true
+        echo "5"
+
         rm -f ~/.ssh/ssh-* 2>/dev/null
+        echo "6"
+
         rm -f /tmp/ssh-mux 2>/dev/null
+        echo "7"
 
         if ! command -v autossh &> /dev/null; then
             apt update && apt install -y autossh
