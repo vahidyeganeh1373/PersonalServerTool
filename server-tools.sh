@@ -121,8 +121,10 @@ function auto_ssh_tunnel_menu() {
     echo ""
     echo "7. Return"
     echo ""
-    read -p "Choice: " ash_choice
+    read -p "$(echo -e "${YELLOW}Choice: ${NC}")" ash_choice
+    echo ""
 case $ash_choice in
+
       1)
         echo -e "\n${YELLOW}[*] Setting up AutoSSH... ${NC}"
         echo ""
@@ -145,7 +147,7 @@ After=network.target
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/bin/ssh -g -N \\
+ExecStart=/usr/bin/ssh -N \\
     -o "StrictHostKeyChecking=no" \\
     -o "UserKnownHostsFile=/dev/null" \\
     -o "FingerprintHash=sha256" \\
@@ -172,7 +174,7 @@ EOF
             ssh-keygen -t rsa -b 2048 -N "" -f ~/.ssh/id_rsa
         fi
         
-        echo -e "${YELLOW}[*] Attempting to copy SSH key... (Enter Password If Asked)${NC}"
+        echo -e "${YELLOW}[*] Attempting To Copy SSH Key... (Enter Password If Asked)${NC}"
         ssh-copy-id -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null" -p ${REMOTE_SSH_PORT} root@${FOREIGN_IP} || echo -e "${RED}Warning: Could not copy SSH key!${NC}"
         
         systemctl daemon-reload
