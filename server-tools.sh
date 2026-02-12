@@ -146,9 +146,6 @@ case $ash_choice in
         fuser -k ${CONFIG_PORT}/tcp 2>/dev/null || true
         echo "5"
 
-        rm -f ~/.ssh/ssh-* 2>/dev/null
-        echo "6"
-
         rm -f /tmp/ssh-mux 2>/dev/null
         echo "7"
 
