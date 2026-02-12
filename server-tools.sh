@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION="0.3.0"
+VERSION="0.3.1"
 SERVER_IP=$(hostname -I | awk '{print $1}')
 
 # Colors
@@ -143,8 +143,6 @@ case $ash_choice in
         pkill -x autossh 2>/dev/null || true
         echo "4"
 
-        fuser -k ${CONFIG_PORT}/tcp 2>/dev/null || true
-        echo "5"
 
         rm -f /tmp/ssh-mux 2>/dev/null
         echo "7"
