@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION="0.3.2"
+VERSION="0.3.1"
 SERVER_IP=$(hostname -I | awk '{print $1}')
 
 # Colors
@@ -136,7 +136,7 @@ case $ash_choice in
         systemctl stop ssh-tunnel 2>/dev/null || true
         systemctl disable ssh-tunnel.service 2>/dev/null || true
         rm -f /etc/systemd/system/ssh-tunnel.service || true
-        rm -f ~/.ssh/ssh-* 2>/dev/null
+        rm -f ~/.ssh/ssh-* || true 
 
 cat <<EOF | sudo tee /etc/systemd/system/ssh-tunnel.service > /dev/null
 [Unit]
