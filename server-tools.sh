@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION="0.3.1"
+VERSION="0.3.2"
 SERVER_IP=$(hostname -I | awk '{print $1}')
 
 # Colors
@@ -134,22 +134,9 @@ case $ash_choice in
         echo ""
 
         systemctl stop ssh-tunnel 2>/dev/null || true
-        echo "1"
         systemctl disable ssh-tunnel.service 2>/dev/null || true
-        echo "2"
         rm -f /etc/systemd/system/ssh-tunnel.service || true
-        echo "3"
-
-        pkill -x autossh 2>/dev/null || true
-        echo "4"
-
-
-        rm -f /tmp/ssh-mux 2>/dev/null
-        echo "7"
-
-        if ! command -v autossh &> /dev/null; then
-            apt update && apt install -y autossh
-        fi
+        rm -f ~/.ssh/ssh-* 2>/dev/null
 
 cat <<EOF | sudo tee /etc/systemd/system/ssh-tunnel.service > /dev/null
 [Unit]
@@ -159,10 +146,7 @@ After=network.target
 [Service]
 Type=simple
 User=root
-Environment="AUTOSSH_GATETIME=0"
-Environment="AUTOSSH_POLL=120"
-ExecStartPre=/usr/bin/rm -f /tmp/ssh-mux
-ExecStart=/usr/bin/autossh -M 0 -g -N \\
+ExecStart=/usr/bin/ssh -g -N \\
     -o "StrictHostKeyChecking=no" \\
     -o "UserKnownHostsFile=/dev/null" \\
     -o "FingerprintHash=sha256" \\
@@ -200,7 +184,7 @@ EOF
         systemctl start ssh-tunnel
         systemctl restart ssh-tunnel || echo -e "${RED}Failed To Start Service!${NC}"
         
-        echo -e "${BLUE}✅ Done! AutoSSH Is Running${NC}"
+        echo -e "${BLUE}✅ Done! SSH-Tunnel Is Running${NC}"
         read -n 1 -s -r -p $'\nPress any key to return...'
         ;;
         
@@ -217,11 +201,9 @@ EOF
         echo -e "\n${RED}[*] Uninstalling... ${NC}"
         systemctl stop ssh-tunnel.service 2>/dev/null || true
         systemctl disable ssh-tunnel.service 2>/dev/null || true
-        pkill -9 autossh 2>/dev/null || true
         
         rm -f /etc/systemd/system/ssh-tunnel.service || true
         rm -f ~/.ssh/ssh-* || true 
-        rm -f /tmp/ssh-mux 2>/dev/null
   
         systemctl daemon-reload || true
         echo -e "${GREEN}[✓] Done ${NC}"; sleep 2 
