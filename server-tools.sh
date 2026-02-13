@@ -253,12 +253,8 @@ EOF
           (crontab -l 2>/dev/null | grep -v "systemctl restart ssh-tunnel") | crontab -
           echo -e "${RED}🛑 Auto Restart Timer Disabled${NC}"
           read -p "Press any key to continue..." -n1
-          ;;
-
       else
-
-(crontab -l 2>/dev/null | grep -v "systemctl restart ssh-tunnel"; echo "0 */$hours * * * systemctl restart ssh-tunnel") | crontab -
-
+          (crontab -l 2>/dev/null | grep -v "systemctl restart ssh-tunnel"; echo "0 */$hours * * * systemctl restart ssh-tunnel") | crontab -
           echo "0 */$hours * * * systemctl restart ssh-tunnel" >> /tmp/cron_temp
           crontab /tmp/cron_temp
           rm /tmp/cron_temp
