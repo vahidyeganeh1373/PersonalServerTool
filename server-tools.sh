@@ -207,7 +207,7 @@ EOF
         systemctl restart ssh-tunnel || echo -e "${RED}Failed To Start Service!${NC}"
         
         echo -e "${BLUE}✅ Done! SSH-Tunnel Is Running${NC}"
-         read -p "Press any key to continue..." -n1
+        read -p "Press any key to continue..." -n1
         ;;
 
       2)
@@ -232,6 +232,8 @@ EOF
         if [ -f /etc/systemd/system/ssh-tunnel.service ]; then
             nano /etc/systemd/system/ssh-tunnel.service
             systemctl daemon-reload && systemctl restart ssh-tunnel
+            echo -e "${BLUE}✅ Service Edited & Restarted ${NC}"
+            read -p "Press any key to continue..." -n1
         else
             echo -e "${RED}❌ Service Not Found ${NC}"; 
             read -p "Press any key to continue..." -n1
