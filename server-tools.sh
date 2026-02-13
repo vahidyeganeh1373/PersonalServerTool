@@ -213,9 +213,7 @@ EOF
       
       echo ""
       read -p "$(echo -e "${YELLOW}Interval: ${NC}")" timer_input
-      echo "1"
       hours=$(echo "$timer_input" | tr -dc '0-9')
-      echo "2"
       if [[ -z "$hours" ]]; then
           echo -e "${RED}Invalid Input! Please Enter A Number${NC}"
           sleep 2
@@ -224,9 +222,8 @@ EOF
           echo -e "${RED}🛑 Auto Restart Timer Disabled${NC}"
           sleep 2
       else
-            echo "3"
-          (crontab -l 2>/dev/null | grep -v "systemctl restart ssh-tunnel") > /tmp/cron_temp
-                echo "4"
+(crontab -l 2>/dev/null | grep -v "systemctl restart ssh-tunnel"; echo "0 */$hours * * * systemctl restart ssh-tunnel") | crontab -
+          echo "4"
 
           echo "0 */$hours * * * systemctl restart ssh-tunnel" >> /tmp/cron_temp
                 echo "5"
