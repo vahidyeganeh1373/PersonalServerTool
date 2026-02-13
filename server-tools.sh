@@ -623,7 +623,9 @@ function main_menu() {
     echo -e "${CYAN}0)${NC} Exit"
     echo ""
     echo -e "${YELLOW}===========================================${NC}"
-    read -p "Enter your choice: " choice
+    echo ""
+    read -p "$(echo -e "${YELLOW}Choice: ${NC}")" choice
+    echo ""
 
     case $choice in
       1) setup_firewall ;;
