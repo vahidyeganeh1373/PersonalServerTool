@@ -125,12 +125,12 @@ function ssh_tunnel_menu() {
     echo -e "${YELLOW}===============================${NC}"
     echo ""
     read -p "$(echo -e "${YELLOW}Choice: ${NC}")" ash_choice
-    echo ""
 case $ash_choice in
 
       1)
         echo -e "\n${YELLOW}[*] Setting up SSH Tunnel... ${NC}"
-        echo ""
+        echo -e "${GREEN}       ┇${NC}"
+        echo -e "${GREEN}       ▼${NC}
         read -p "$(echo -e "${YELLOW}Foreign IP: ${NC}")" FOREIGN_IP
         echo ""
         read -p "$(echo -e "${YELLOW}Foreign SSH Port (e.g., 22): ${NC}")" REMOTE_SSH_PORT
@@ -347,7 +347,6 @@ function enable_root_login() {
 function change_root_password() {
     echo -e "\n${YELLOW}[*] Changing Root Password...${NC}"
     
-    # استفاده از -s برای اینکه پسورد موقع تایپ دیده نشود
     read -p "Enter New Root Password: " USER_PASS
     echo -e "\n"
 
