@@ -211,8 +211,8 @@ EOF
         ;;
 
       2)
-        echo -e "\n${YELLOW}[*] Restarting... ${NC}"
-         echo "
+         echo -e "\n${YELLOW}[*] Restarting... ${NC}"
+         echo ""
          systemctl daemon-reload && systemctl restart ssh-tunnel
          echo -e "${BLUE}✅ Service Restarted${NC}"
          read -p "Press any key to continue..." -n1
