@@ -210,9 +210,9 @@ EOF
         read -n 1 -s -r -p $'\nPress any key to return...'
         ;;
 
-      2) systemctl daemon-reload && systemctl restart ssh-tunnel; echo -e "${BLUE}✅ Service Restarted${NC}"; sleep 1 ;;
+      2) systemctl daemon-reload && systemctl restart ssh-tunnel; echo -e "${BLUE}✅ Service Restarted${NC}";
          read -p "Press any key to continue..." -n1 ;;
-      3) systemctl stop ssh-tunnel && systemctl disable ssh-tunnel; echo -e "${RED}🛑 Tunnel Stopped${NC}"; sleep 1 ;;
+      3) systemctl stop ssh-tunnel && systemctl disable ssh-tunnel; echo -e "${RED}🛑 Tunnel Stopped${NC}";
          read -p "Press any key to continue..." -n1 ;;
       4) 
         if [ -f /etc/systemd/system/ssh-tunnel.service ]; then
