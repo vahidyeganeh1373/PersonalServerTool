@@ -117,9 +117,10 @@ function ssh_tunnel_menu() {
     echo "3. Disable"
     echo "4. Edit"
     echo "5. Uninstall"
-    echo "6. Status"
+    echo "6. Reset Timer"
+    echo "7. Status"
     echo ""
-    echo "7. Return"
+    echo "8. Return"
     echo ""
     read -p "$(echo -e "${YELLOW}Choice: ${NC}")" ash_choice
     echo ""
@@ -201,14 +202,42 @@ EOF
         systemctl disable ssh-tunnel.service 2>/dev/null || true
         
         rm -f /etc/systemd/system/ssh-tunnel.service || true
-  
+        crontab -l 2>/dev/null | grep -v "systemctl restart ssh-tunnel" | crontab -
         systemctl daemon-reload || true
-        echo -e "${GREEN}[✓] Done ${NC}"; sleep 2 
+        echo -e "${RED}❌ SSH-Tunnel Uninstalled Successfully${NC}"
         ;;
-      6) 
+      6)
+      echo -e "\n${YELLOW}[*] Configure Auto Restart Timer${NC}"
+      echo -e "\n${YELLOW}Enter Interval In Hours (e.g. 2h)${NC}"
+      echo -e "\n${YELLOW}Enter '0' to Disable The Timer${NC}"
+      
+      echo ""
+      read -p "$(echo -e "${YELLOW}Interval: ${NC}")" timer_input
+      
+      hours=$(echo "$timer_input" | tr -dc '0-9')
+      
+      if [[ -z "$hours" ]]; then
+          echo -e "${RED}Invalid Input! Please enter A Number${NC}"
+          sleep 2
+      elif [[ "$hours" -eq 0 ]]; then
+          (crontab -l 2>/dev/null | grep -v "systemctl restart ssh-tunnel") | crontab -
+          echo -e "${RED}🛑 Auto Restart Timer Disabled${NC}"
+          sleep 2
+      else
+          (crontab -l 2>/dev/null | grep -v "systemctl restart ssh-tunnel") > /tmp/cron_temp
+          
+          echo "0 */$hours * * * systemctl restart ssh-tunnel" >> /tmp/cron_temp
+          
+          crontab /tmp/cron_temp
+          rm /tmp/cron_temp
+          echo -e "${BLUE}✅ Timer Set! Service Will Restart Every $hours Hour(s)${NC}"
+          sleep 2
+      fi
+      ;;
+      7) 
         systemctl status ssh-tunnel --no-pager
         read -n 1 -s -r -p $'\nPress any key to return...' ;;
-      7) break ;;
+      8) break ;;
       *) echo "Invalid option"; sleep 1 ;;
     esac
     done
@@ -417,10 +446,9 @@ function GostMenu() {
     echo "4. Edit Config"
     echo "5. Status"
     echo "6. Uninstall"
-    echo "7. Restart Timer"
-    echo "8. Show Logs"
+    echo "7. Show Logs"
     echo ""
-    echo "9. Return"
+    echo "8. Return"
     echo ""
     
     read -p "$(echo -e "${YELLOW}Choice: ${NC}")" gost_choice
@@ -543,37 +571,9 @@ EOF
          sudo rm /usr/lib/systemd/system/gost.service
          sudo rm -rf /usr/local/bin/gost
          sudo systemctl daemon-reload
-         crontab -l 2>/dev/null | grep -v "systemctl restart ssh-tunnel" | crontab -
          echo -e "${RED}❌ Gost Uninstalled Successfully${NC}"
          read -p "Press any key to continue..." -n1 ;;
-      7)
-        echo -e "\n${YELLOW}[*] Configure Auto Restart Timer${NC}"
-        echo "Enter Interval In Hours (e.g., 1h, 2h, 5h)."
-        echo "Enter '0' to disable the timer."
-        echo ""
-        read -p "$(echo -e "${YELLOW}Interval: ${NC}")" timer_input
-        
-        hours=$(echo "$timer_input" | tr -dc '0-9')
-        
-        if [[ -z "$hours" ]]; then
-            echo -e "${RED}Invalid Input! Please enter A Number${NC}"
-            sleep 2
-        elif [[ "$hours" -eq 0 ]]; then
-            (crontab -l 2>/dev/null | grep -v "systemctl restart ssh-tunnel") | crontab -
-            echo -e "${RED}🛑 Auto Restart Timer Disabled${NC}"
-            sleep 2
-        else
-            (crontab -l 2>/dev/null | grep -v "systemctl restart ssh-tunnel") > /tmp/cron_temp
-            
-            echo "0 */$hours * * * systemctl restart ssh-tunnel" >> /tmp/cron_temp
-            
-            crontab /tmp/cron_temp
-            rm /tmp/cron_temp
-            echo -e "${BLUE}✅ Timer Set! Service Will Restart Every $hours Hour(s)${NC}"
-            sleep 2
-        fi
-        ;;
-      8) clear
+      7) clear
          echo "Press Ctrl+C to exit logs..."
          journalctl -u gost -f ;;
          
