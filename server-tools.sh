@@ -210,10 +210,14 @@ EOF
         read -n 1 -s -r -p $'\nPress any key to return...'
         ;;
 
-      2) systemctl daemon-reload && systemctl restart ssh-tunnel; echo -e "${BLUE}✅ Service Restarted${NC}";
+      2) systemctl daemon-reload && systemctl restart ssh-tunnel
+         echo -e "${BLUE}✅ Service Restarted${NC}"
          read -p "Press any key to continue..." -n1 ;;
-      3) systemctl stop ssh-tunnel && systemctl disable ssh-tunnel; echo -e "${RED}🛑 Tunnel Stopped${NC}";
+         
+      3) systemctl stop ssh-tunnel && systemctl disable ssh-tunnel
+         echo -e "${RED}🛑 Tunnel Stopped${NC}";
          read -p "Press any key to continue..." -n1 ;;
+         
       4) 
         if [ -f /etc/systemd/system/ssh-tunnel.service ]; then
             nano /etc/systemd/system/ssh-tunnel.service
@@ -230,7 +234,6 @@ EOF
         systemctl daemon-reload || true
         echo -e "${RED}❌ SSH-Tunnel Uninstalled Successfully${NC}"
         read -p "Press any key to continue..." -n1 ;;
-        ;;
   6)
 
       echo -e "\n${YELLOW}[*] Configure Auto Restart Timer${NC}"
