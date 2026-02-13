@@ -127,7 +127,7 @@ function ssh_tunnel_menu() {
 case $ash_choice in
 
       1)
-        echo -e "\n${YELLOW}[*] Setting up AutoSSH... ${NC}"
+        echo -e "\n${YELLOW}[*] Setting up SSH Tunnel... ${NC}"
         echo ""
         read -p "$(echo -e "${YELLOW}Foreign IP: ${NC}")" FOREIGN_IP
         echo ""
@@ -135,6 +135,18 @@ case $ash_choice in
         echo ""
         read -p "$(echo -e "${YELLOW}Config Port (e.g., 2083): ${NC}")" CONFIG_PORT
         echo ""
+        echo -e "${YELLOW}Select Encryption Cipher:${NC}"
+        echo ""
+        echo -e "${YELLOW}1. AES128-CTR (Recommended For Stability/DPI Bypass)${NC}"
+        echo -e "${YELLOW}2. Chacha20-Poly1305 (Fast/Secure)${NC}"
+        echo ""
+        read -p "$(echo -e "${YELLOW}Choice [1-2]: ${NC}")" cipher_choice
+        echo ""
+        if [[ "$cipher_choice" == "2" ]]; then
+            SELECTED_CIPHER="chacha20-poly1305@openssh.com"
+        else
+            SELECTED_CIPHER="aes128-ctr"
+        fi
 
         systemctl stop ssh-tunnel 2>/dev/null || true
         systemctl disable ssh-tunnel.service 2>/dev/null || true
@@ -152,7 +164,7 @@ ExecStart=/usr/bin/ssh -N \\
     -o "StrictHostKeyChecking=no" \\
     -o "UserKnownHostsFile=/dev/null" \\
     -o "FingerprintHash=sha256" \\
-    -o "Ciphers=chacha20-poly1305@openssh.com" \\
+    -o "Ciphers=${SELECTED_CIPHER}" \\
     -o "Compression=yes" \\
     -o "KbdInteractiveAuthentication=no" \\
     -o "PreferredAuthentications=publickey" \\
@@ -162,7 +174,7 @@ ExecStart=/usr/bin/ssh -N \\
     -o "ExitOnForwardFailure=yes" \\
     -p ${REMOTE_SSH_PORT} -L 0.0.0.0:${CONFIG_PORT}:127.0.0.1:${CONFIG_PORT} root@${FOREIGN_IP}
 Restart=always
-RestartSec=5
+RestartSec=3
 
 [Install]
 WantedBy=multi-user.target
@@ -206,24 +218,24 @@ EOF
         systemctl daemon-reload || true
         echo -e "${RED}❌ SSH-Tunnel Uninstalled Successfully${NC}"
         ;;
-      6)
+6)
       echo -e "\n${YELLOW}[*] Configure Auto Restart Timer${NC}"
-      echo -e "\n${YELLOW}Enter Interval In Hours (e.g. 2h)${NC}"
-      echo -e "\n${YELLOW}Enter '0' to Disable The Timer${NC}"
-      
+      echo -e "${YELLOW}Enter Interval In Hours (e.g. 2 or 2h)${NC}"
+      echo -e "${YELLOW}Enter '0' to Disable The Timer${NC}"
       echo ""
       read -p "$(echo -e "${YELLOW}Interval: ${NC}")" timer_input
+      
       hours=$(echo "$timer_input" | tr -dc '0-9')
+
       if [[ -z "$hours" ]]; then
-          echo -e "${RED}Invalid Input! Please Enter A Number${NC}"
+          echo -e "${RED}Invalid Input! Please Enter A Number (e.g. 2)${NC}"
           sleep 2
       elif [[ "$hours" -eq 0 ]]; then
-          (crontab -l 2>/dev/null | grep -v "systemctl restart ssh-tunnel") | crontab -
+          crontab -l 2>/dev/null | grep -v "systemctl restart ssh-tunnel" | crontab -
           echo -e "${RED}🛑 Auto Restart Timer Disabled${NC}"
           sleep 2
       else
-(crontab -l 2>/dev/null | grep -v "systemctl restart ssh-tunnel"; echo "0 */$hours * * * systemctl restart ssh-tunnel") | crontab -
-
+          (crontab -l 2>/dev/null | grep -v "systemctl restart ssh-tunnel") > /tmp/cron_temp
           echo "0 */$hours * * * systemctl restart ssh-tunnel" >> /tmp/cron_temp
           crontab /tmp/cron_temp
           rm /tmp/cron_temp
