@@ -198,6 +198,7 @@ EOF
         fi
         
         echo -e "${YELLOW}[*] Attempting To Copy SSH Key... (Enter Password If Asked)${NC}"
+        echo ""
         ssh-copy-id -o "StrictHostKeyChecking=no" -o "UserKnownHostsFile=/dev/null" -p ${REMOTE_SSH_PORT} root@${FOREIGN_IP} || echo -e "${RED}Warning: Could not copy SSH key!${NC}"
         
         systemctl daemon-reload
@@ -208,9 +209,9 @@ EOF
         echo -e "${BLUE}✅ Done! SSH-Tunnel Is Running${NC}"
         read -n 1 -s -r -p $'\nPress any key to return...'
         ;;
-        
-      2) systemctl daemon-reload && systemctl restart ssh-tunnel; echo -e "${GREEN}[✓] Service Restarted ${NC}"; sleep 1 ;;
-      3) systemctl stop ssh-tunnel && systemctl disable ssh-tunnel; echo -e "${GREEN}[✓] Tunnel Stopped ${NC}"; sleep 1 ;;
+
+      2) systemctl daemon-reload && systemctl restart ssh-tunnel; echo -e "${BLUE}✅ Service Restarted${NC}"; sleep 1 ;;
+      3) systemctl stop ssh-tunnel && systemctl disable ssh-tunnel; echo -e "${RED}🛑 Tunnel Stopped${NC}"; sleep 1 ;;
       4) 
         if [ -f /etc/systemd/system/ssh-tunnel.service ]; then
             nano /etc/systemd/system/ssh-tunnel.service
