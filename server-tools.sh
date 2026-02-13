@@ -104,8 +104,8 @@ function pasarguard_node_menu() {
   done
 }
 
-# --- 10. Auto SSH Tunnel Function ---
-function auto_ssh_tunnel_menu() {
+# --- 10. SSH Tunnel Function ---
+function ssh_tunnel_menu() {
   while true; do
     clear
     echo -e "${YELLOW}===============================${NC}"
@@ -417,9 +417,10 @@ function GostMenu() {
     echo "4. Edit Config"
     echo "5. Status"
     echo "6. Uninstall"
-    echo "7. Show Logs"
+    echo "7. Restart Timer"
+    echo "8. Show Logs"
     echo ""
-    echo "8. Return"
+    echo "9. Return"
     echo ""
     
     read -p "$(echo -e "${YELLOW}Choice: ${NC}")" gost_choice
@@ -542,14 +543,41 @@ EOF
          sudo rm /usr/lib/systemd/system/gost.service
          sudo rm -rf /usr/local/bin/gost
          sudo systemctl daemon-reload
+         crontab -l 2>/dev/null | grep -v "systemctl restart ssh-tunnel" | crontab -
          echo -e "${RED}❌ Gost Uninstalled Successfully${NC}"
          read -p "Press any key to continue..." -n1 ;;
-      
-      7) clear
+      7)
+        echo -e "\n${YELLOW}[*] Configure Auto Restart Timer${NC}"
+        echo "Enter Interval In Hours (e.g., 1h, 2h, 5h)."
+        echo "Enter '0' to disable the timer."
+        echo ""
+        read -p "$(echo -e "${YELLOW}Interval: ${NC}")" timer_input
+        
+        hours=$(echo "$timer_input" | tr -dc '0-9')
+        
+        if [[ -z "$hours" ]]; then
+            echo -e "${RED}Invalid Input! Please enter A Number${NC}"
+            sleep 2
+        elif [[ "$hours" -eq 0 ]]; then
+            (crontab -l 2>/dev/null | grep -v "systemctl restart ssh-tunnel") | crontab -
+            echo -e "${RED}🛑 Auto Restart Timer Disabled${NC}"
+            sleep 2
+        else
+            (crontab -l 2>/dev/null | grep -v "systemctl restart ssh-tunnel") > /tmp/cron_temp
+            
+            echo "0 */$hours * * * systemctl restart ssh-tunnel" >> /tmp/cron_temp
+            
+            crontab /tmp/cron_temp
+            rm /tmp/cron_temp
+            echo -e "${BLUE}✅ Timer Set! Service Will Restart Every $hours Hour(s)${NC}"
+            sleep 2
+        fi
+        ;;
+      8) clear
          echo "Press Ctrl+C to exit logs..."
          journalctl -u gost -f ;;
          
-      8) break ;;
+      9) break ;;
     esac
   done
 }
@@ -598,7 +626,7 @@ function main_menu() {
       7) Backhual ;;
       8) GostMenu ;;
       9) lena_tunnel ;;
-      10) auto_ssh_tunnel_menu ;;
+      10) ssh_tunnel_menu ;;
       11) pasarguard_node_menu ;;
       12) enable_root_login ;;
       0|0) exit 0 ;;
