@@ -275,6 +275,7 @@ EOF
       7) 
         systemctl status ssh-tunnel --no-pager
          read -p "Press any key to continue..." -n1
+         ;;
       8) break ;;
       *) echo "Invalid option"; sleep 1 ;;
     esac
