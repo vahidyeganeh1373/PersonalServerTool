@@ -211,7 +211,9 @@ EOF
         ;;
 
       2) systemctl daemon-reload && systemctl restart ssh-tunnel; echo -e "${BLUE}✅ Service Restarted${NC}"; sleep 1 ;;
+         read -p "Press any key to continue..." -n1 ;;
       3) systemctl stop ssh-tunnel && systemctl disable ssh-tunnel; echo -e "${RED}🛑 Tunnel Stopped${NC}"; sleep 1 ;;
+         read -p "Press any key to continue..." -n1 ;;
       4) 
         if [ -f /etc/systemd/system/ssh-tunnel.service ]; then
             nano /etc/systemd/system/ssh-tunnel.service
@@ -223,20 +225,17 @@ EOF
         echo -e "\n${RED}[*] Uninstalling... ${NC}"
         systemctl stop ssh-tunnel.service 2>/dev/null || true
         systemctl disable ssh-tunnel.service 2>/dev/null || true
-        
         rm -f /etc/systemd/system/ssh-tunnel.service || true
         crontab -l 2>/dev/null | grep -v "systemctl restart ssh-tunnel" | crontab -
         systemctl daemon-reload || true
         echo -e "${RED}❌ SSH-Tunnel Uninstalled Successfully${NC}"
+        read -p "Press any key to continue..." -n1 ;;
         ;;
   6)
 
       echo -e "\n${YELLOW}[*] Configure Auto Restart Timer${NC}"
       echo -e "\n${YELLOW}Enter Interval In Hours (e.g. 2h)${NC}"
       echo -e "\n${YELLOW}Enter '0' to Disable The Timer${NC}"
-
-      
-
       echo ""
       read -p "$(echo -e "${YELLOW}Interval: ${NC}")" timer_input
       hours=$(echo "$timer_input" | tr -dc '0-9')
@@ -247,7 +246,7 @@ EOF
       elif [[ "$hours" -eq 0 ]]; then
           (crontab -l 2>/dev/null | grep -v "systemctl restart ssh-tunnel") | crontab -
           echo -e "${RED}🛑 Auto Restart Timer Disabled${NC}"
-          sleep 2
+          read -p "Press any key to continue..." -n1 ;;
 
       else
 
@@ -259,7 +258,7 @@ EOF
           crontab /tmp/cron_temp
           rm /tmp/cron_temp
           echo -e "${BLUE}✅ Timer Set! Service Will Restart Every $hours Hour(s)${NC}"
-          sleep 2
+          read -p "Press any key to continue..." -n1 ;;
 
       fi
       ;;
