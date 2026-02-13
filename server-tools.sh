@@ -274,8 +274,7 @@ EOF
       ;;
       7)
         systemctl status ssh-tunnel --no-pager
-        read -n 1 -s -r -p "Press any key to return..."
-        ;;
+        read -n 1 -s -r -p $'\nPress any key to return...' ;;
       8) break ;;
       *) echo "Invalid option"; sleep 1 ;;
     esac
@@ -615,7 +614,7 @@ EOF
          echo "Press Ctrl+C to exit logs..."
          journalctl -u gost -f ;;
          
-      9) break ;;
+      8) break ;;
     esac
   done
 }
