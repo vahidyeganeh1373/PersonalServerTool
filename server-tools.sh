@@ -122,6 +122,8 @@ function ssh_tunnel_menu() {
     echo ""
     echo "8. Return"
     echo ""
+    echo -e "${YELLOW}===============================${NC}"
+    echo ""
     read -p "$(echo -e "${YELLOW}Choice: ${NC}")" ash_choice
     echo ""
 case $ash_choice in
