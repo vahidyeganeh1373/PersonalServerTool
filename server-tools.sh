@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION="0.3.3"
+VERSION="0.3.4"
 SERVER_IP=$(hostname -I | awk '{print $1}')
 
 # Colors
