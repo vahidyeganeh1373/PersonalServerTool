@@ -129,13 +129,21 @@ case $ash_choice in
 
       1)
         echo -e "\n${YELLOW}[*] Setting up SSH Tunnel... ${NC}"
-        echo -e "${GREEN}       ┇${NC}"
-        echo -e "${GREEN}       ▼${NC}"
+        echo ""
         read -p "$(echo -e "${YELLOW}Foreign IP: ${NC}")" FOREIGN_IP
+        echo ""
+        echo -e "${GREEN} ┇${NC}"
+        echo -e "${GREEN} ▼${NC}"
         echo ""
         read -p "$(echo -e "${YELLOW}Foreign SSH Port (e.g., 22): ${NC}")" REMOTE_SSH_PORT
         echo ""
+        echo -e "${GREEN} ┇${NC}"
+        echo -e "${GREEN} ▼${NC}"
+        echo ""
         read -p "$(echo -e "${YELLOW}Config Port (e.g., 2083): ${NC}")" CONFIG_PORT
+        echo ""
+        echo -e "${GREEN} ┇${NC}"
+        echo -e "${GREEN} ▼${NC}"
         echo ""
         echo -e "${YELLOW}Select Encryption Cipher:${NC}"
         echo ""
