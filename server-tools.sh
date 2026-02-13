@@ -272,10 +272,10 @@ EOF
           read -p "Press any key to continue..." -n1
       fi
       ;;
-      7) 
+      7)
         systemctl status ssh-tunnel --no-pager
-         read -p "Press any key to continue..." -n1
-         ;;
+        read -n 1 -s -r -p "Press any key to return..."
+        ;;
       8) break ;;
       *) echo "Invalid option"; sleep 1 ;;
     esac
