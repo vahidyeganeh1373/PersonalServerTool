@@ -259,14 +259,11 @@ EOF
 
 (crontab -l 2>/dev/null | grep -v "systemctl restart ssh-tunnel"; echo "0 */$hours * * * systemctl restart ssh-tunnel") | crontab -
 
-
-
           echo "0 */$hours * * * systemctl restart ssh-tunnel" >> /tmp/cron_temp
           crontab /tmp/cron_temp
           rm /tmp/cron_temp
           echo -e "${BLUE}✅ Timer Set! Service Will Restart Every $hours Hour(s)${NC}"
-          read -p "Press any key to continue..." -n1 ;;
-
+          read -p "Press any key to continue..." -n1
       fi
       ;;
       7) 
