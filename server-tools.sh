@@ -104,12 +104,12 @@ function pasarguard_node_menu() {
   done
 }
 
-# --- 10. SSH Tunnel Function ---
+# --- 10. AutoSSH Tunnel Function ---
 function ssh_tunnel_menu() {
   while true; do
     clear
     echo -e "${YELLOW}===============================${NC}"
-    echo -e "${YELLOW}         SSH-Tunnel Menu           ${NC}"
+    echo -e "${YELLOW}        AutoSSH Tunnel Menu           ${NC}"
     echo -e "${YELLOW}===============================${NC}"
     echo ""
     echo "1. Install / ReConfig"
@@ -128,7 +128,7 @@ function ssh_tunnel_menu() {
 case $ash_choice in
 
       1)
-        echo -e "\n${YELLOW}[*] Setting up SSH Tunnel... ${NC}"
+        echo -e "\n${YELLOW}[*] Setting up AutoSSH Tunnel... ${NC}"
         echo ""
         read -p "$(echo -e "${YELLOW}Foreign IP: ${NC}")" FOREIGN_IP
         echo ""
@@ -168,7 +168,7 @@ case $ash_choice in
 
 cat <<EOF | sudo tee /etc/systemd/system/ssh-tunnel.service > /dev/null
 [Unit]
-Description=Auto-SSH Tunnel
+Description=AutoSSH Tunnel
 After=network.target
 
 [Service]
@@ -234,7 +234,7 @@ EOF
          echo -e "\n${YELLOW}[*] Disabling... ${NC}"
          echo ""
          systemctl stop ssh-tunnel && systemctl disable ssh-tunnel
-         rm -f /tmp/ssh-mux
+         rm -f /tmp/ssh-mux || true
          echo -e "${RED}🛑 Tunnel Stopped${NC}";
          read -p "Press any key to continue..." -n1
          ;;
@@ -258,6 +258,7 @@ EOF
         systemctl stop ssh-tunnel.service 2>/dev/null || true
         systemctl disable ssh-tunnel.service 2>/dev/null || true
         rm -f /etc/systemd/system/ssh-tunnel.service || true
+        rm -f /tmp/ssh-mux || true
         crontab -l 2>/dev/null | grep -v "systemctl restart ssh-tunnel" | crontab -
         systemctl daemon-reload || true
         echo -e "${RED}❌ SSH-Tunnel Uninstalled Successfully${NC}"
