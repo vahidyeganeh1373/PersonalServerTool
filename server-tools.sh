@@ -162,27 +162,39 @@ case $ash_choice in
         systemctl disable ssh-tunnel.service 2>/dev/null || true
         rm -f /etc/systemd/system/ssh-tunnel.service || true
 
+        if ! command -v autossh &> /dev/null; then
+            apt update && apt install -y autossh
+        fi
+
 cat <<EOF | sudo tee /etc/systemd/system/ssh-tunnel.service > /dev/null
 [Unit]
-Description=SSH-Tunnel
+Description=Auto-SSH Tunnel
 After=network.target
 
 [Service]
 Type=simple
 User=root
-ExecStart=/usr/bin/ssh -N \\
+Environment="AUTOSSH_GATETIME=0"
+Environment="AUTOSSH_POLL=60"
+ExecStartPre=/usr/bin/rm -f /tmp/ssh-mux
+ExecStart=/usr/bin/autossh -M 0 -g \\
     -o "StrictHostKeyChecking=no" \\
     -o "UserKnownHostsFile=/dev/null" \\
+    -o "ControlMaster=auto" \
+    -o "ControlPath=/tmp/ssh-mux" \
+    -o "ControlPersist=5m" \
     -o "FingerprintHash=sha256" \\
     -o "Ciphers=${SELECTED_CIPHER}" \\
-    -o "Compression=yes" \\
+    -o "Compression=no" \\
     -o "KbdInteractiveAuthentication=no" \\
     -o "PreferredAuthentications=publickey" \\
-    -o "ServerAliveInterval 25" \\
+    -o "ServerAliveInterval 23" \\
     -o "ServerAliveCountMax 3" \\
+    -o "RekeyLimit=256M 30m" \\
     -o "TCPKeepAlive=no" \\
     -o "ExitOnForwardFailure=yes" \\
-    -p ${REMOTE_SSH_PORT} -L 0.0.0.0:${CONFIG_PORT}:127.0.0.1:${CONFIG_PORT} root@${FOREIGN_IP}
+    -p ${REMOTE_SSH_PORT} -L 0.0.0.0:${CONFIG_PORT}:127.0.0.1:${CONFIG_PORT} root@${FOREIGN_IP} sleep infinity
+RuntimeMaxSec=3600    
 Restart=always
 RestartSec=3
 
@@ -222,6 +234,7 @@ EOF
          echo -e "\n${YELLOW}[*] Disabling... ${NC}"
          echo ""
          systemctl stop ssh-tunnel && systemctl disable ssh-tunnel
+         rm -f /tmp/ssh-mux
          echo -e "${RED}🛑 Tunnel Stopped${NC}";
          read -p "Press any key to continue..." -n1
          ;;
