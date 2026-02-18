@@ -180,9 +180,10 @@ ExecStart=/usr/bin/ssh -N \\
     -o "PreferredAuthentications=publickey" \\
     -o "ServerAliveInterval 23" \\
     -o "ServerAliveCountMax 3" \\
-    -o "RekeyLimit=256M 30m" \\
+    -o "RekeyLimit=512M 30m" \\
     -o "TCPKeepAlive=no" \\
     -o "ExitOnForwardFailure=yes" \\
+    -o "IPQoS=throughput" \\
     -p ${REMOTE_SSH_PORT} -L 0.0.0.0:${CONFIG_PORT}:127.0.0.1:${CONFIG_PORT} root@${FOREIGN_IP}
 RuntimeMaxSec=3600    
 Restart=always
@@ -277,7 +278,7 @@ EOF
       fi
       ;;
       7)
-        systemctl status ssh-tunnel --no-pager
+        journalctl -u ssh-tunnel.service -f
         read -n 1 -s -r -p $'\nPress any key to return...' ;;
       8) break ;;
       *) echo "Invalid option"; sleep 1 ;;
