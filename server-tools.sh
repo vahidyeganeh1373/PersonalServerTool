@@ -178,9 +178,9 @@ ExecStart=/usr/bin/ssh -N \\
     -o "Compression=no" \\
     -o "KbdInteractiveAuthentication=no" \\
     -o "PreferredAuthentications=publickey" \\
-    -o "ServerAliveInterval 23" \\
+    -o "ServerAliveInterval 9" \\
     -o "ServerAliveCountMax 3" \\
-    -o "RekeyLimit=512M 30m" \\
+    -o "RekeyLimit=2G 1h" \\
     -o "TCPKeepAlive=yes" \\
     -o "ExitOnForwardFailure=yes" \\
     -o "IPQoS=throughput" \\
