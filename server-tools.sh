@@ -181,7 +181,7 @@ ExecStart=/usr/bin/ssh -N \\
     -o "ServerAliveInterval 23" \\
     -o "ServerAliveCountMax 3" \\
     -o "RekeyLimit=512M 30m" \\
-    -o "TCPKeepAlive=no" \\
+    -o "TCPKeepAlive=yes" \\
     -o "ExitOnForwardFailure=yes" \\
     -o "IPQoS=throughput" \\
     -p ${REMOTE_SSH_PORT} -L 0.0.0.0:${CONFIG_PORT}:127.0.0.1:${CONFIG_PORT} root@${FOREIGN_IP}
