@@ -109,7 +109,7 @@ function ssh_tunnel_menu() {
   while true; do
     clear
     echo -e "${YELLOW}===============================${NC}"
-    echo -e "${YELLOW}        AutoSSH Tunnel Menu           ${NC}"
+    echo -e "${YELLOW}         SSH Tunnel Menu           ${NC}"
     echo -e "${YELLOW}===============================${NC}"
     echo ""
     echo "1. Install / ReConfig"
@@ -128,7 +128,7 @@ function ssh_tunnel_menu() {
 case $ash_choice in
 
       1)
-        echo -e "\n${YELLOW}[*] Setting up AutoSSH Tunnel... ${NC}"
+        echo -e "\n${YELLOW}[*] Setting up SSH Tunnel... ${NC}"
         echo ""
         read -p "$(echo -e "${YELLOW}Foreign IP: ${NC}")" FOREIGN_IP
         echo ""
