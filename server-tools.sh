@@ -104,7 +104,7 @@ function pasarguard_node_menu() {
   done
 }
 
-# --- 10. AutoSSH Tunnel Function ---
+# --- 10. SSH Tunnel Function ---
 function ssh_tunnel_menu() {
   while true; do
     clear
@@ -147,7 +147,7 @@ case $ash_choice in
         echo ""
         echo -e "${YELLOW}Select Encryption Cipher:${NC}"
         echo ""
-        echo -e "${YELLOW}1. AES128-CTR (Recommended For Stability/DPI Bypass)${NC}"
+        echo -e "${YELLOW}1. AES128-CTR (Stability/DPI Bypass)${NC}"
         echo -e "${YELLOW}2. Chacha20-Poly1305 (Fast/Secure)${NC}"
         echo ""
         read -p "$(echo -e "${YELLOW}Choice [1-2]: ${NC}")" cipher_choice
