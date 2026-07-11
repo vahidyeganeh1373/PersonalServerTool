@@ -397,6 +397,32 @@ function change_root_password() {
     read -n 1 -s -r -p $'\nPress any key to return...'
 }
 
+function change_dns() {
+    echo -e "\n${YELLOW}[*] Changing DNS Configuration...${NC}"
+    
+    # Remove immutable flag if it was set before, so we can modify/replace the file
+    sudo chattr -i /etc/resolv.conf 2>/dev/null || true
+    
+    echo -e "${YELLOW}[*] Disabling systemd-resolved...${NC}"
+    sudo systemctl disable --now systemd-resolved 2>/dev/null || echo -e "${RED}[!] systemd-resolved was not running or already disabled${NC}"
+    
+    echo -e "${YELLOW}[*] Writing new resolv.conf...${NC}"
+    sudo rm -f /etc/resolv.conf
+    sudo bash -c 'cat > /etc/resolv.conf << EOF
+nameserver 1.1.1.1
+nameserver 8.8.8.8
+EOF'
+    
+    echo -e "${YELLOW}[*] Locking resolv.conf (immutable)...${NC}"
+    sudo chattr +i /etc/resolv.conf
+    
+    echo -e "${GREEN}[✓] DNS Changed Successfully To 1.1.1.1 / 8.8.8.8${NC}"
+    echo -e "${CYAN}[i] Current /etc/resolv.conf:${NC}"
+    cat /etc/resolv.conf
+    
+    read -n 1 -s -r -p $'\nPress any key to return...'
+}
+
 # --- 06. Marzban Node ---
 function install_marzban_node() {
   while true; do
@@ -653,6 +679,7 @@ function main_menu() {
     echo -e "${CYAN}10)${NC} SSH Tunnel + Encryption (Just Iran Side)"
     echo -e "${CYAN}11)${NC} Pasarguard Node"
     echo -e "${CYAN}12)${NC} Enable Root Login"
+    echo -e "${CYAN}13)${NC} Change DNS"
     echo -e "${CYAN}0)${NC} Exit"
     echo ""
     echo -e "${YELLOW}===========================================${NC}"
@@ -673,6 +700,7 @@ function main_menu() {
       10) ssh_tunnel_menu ;;
       11) pasarguard_node_menu ;;
       12) enable_root_login ;;
+      13) change_dns ;;
       0|0) exit 0 ;;
       *) echo "Invalid option"; sleep 1 ;;
     esac
