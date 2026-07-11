@@ -338,9 +338,20 @@ function change_ssh_port() {
         sed -i '/^#Port /d' /etc/ssh/sshd_config
         echo "Port $NEW_PORT" >> /etc/ssh/sshd_config
 
+        echo -e "${YELLOW}[*] Disabling ssh.socket (if present)...${NC}"
+        if systemctl list-unit-files | grep -q "^ssh.socket"; then
+            systemctl stop ssh.socket 2>/dev/null || true
+            systemctl disable ssh.socket 2>/dev/null || true
+            echo -e "${GREEN}[✓] ssh.socket Disabled${NC}"
+        fi
+
         echo -e "${YELLOW}[*] Restarting SSH service...${NC}"
+        systemctl daemon-reload
         if systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null; then
+            systemctl enable ssh 2>/dev/null || systemctl enable sshd 2>/dev/null
             echo -e "${GREEN}[✓] SSH Port Successfully Changed To $NEW_PORT ${NC}"
+            echo -e "${CYAN}[i] Verifying listening port...${NC}"
+            ss -tlnp | grep ssh
         else
             echo -e "${RED}[!] Failed To Restart SSH. Please Check /etc/ssh/sshd_config Manually ${NC}"
         fi
