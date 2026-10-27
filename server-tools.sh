@@ -1216,7 +1216,7 @@ function ww_install() {
   ww_ask_port "Config Port (e.g. 443)" 443 W_CP
   echo ""
   if [ "$SIDE" = "iran" ]; then
-    ww_ask_ip "Foreign Server IP (allowed to connect to tunnel port)" ip
+    ww_ask_ip "Foreign Server IP " ip
     W_FOREIGN_IP="${ip%/*}"
   else
     ww_ask_ip "Iran Server IP" ip
