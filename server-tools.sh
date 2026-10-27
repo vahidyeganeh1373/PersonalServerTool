@@ -7,13 +7,10 @@ RED='\033[1;31m'
 GREEN='\033[1;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[1;34m'
-PURPLE='\033[1;35m'
 CYAN='\033[1;36m'
 NC='\033[0m'
 
-set -e
-
-# --- 11. Pasarguard Node Function ---
+# --- 9. Pasarguard Node Function ---
 function pasarguard_node_menu() {
   while true; do
     clear
@@ -26,11 +23,12 @@ function pasarguard_node_menu() {
     echo "4. Edit Docker Config"
     echo "5. Back to MainMenu"
     echo "-------------------------------"
-    read -p "Select an option [1-4]: " pg_choice
+    read -p "Select an option [1-5]: " pg_choice
 
     case $pg_choice in
       1)
         echo -e "${YELLOW}[*] Preparing Assets... ${NC}"
+        command -v wget >/dev/null 2>&1 || apt-get install -y wget
         mkdir -p /var/lib/pg-node/assets/
         wget -O /var/lib/pg-node/assets/iran.dat https://github.com/bootmortis/iran-hosted-domains/releases/latest/download/iran.dat
         wget -O /var/lib/pg-node/assets/geoip.dat https://github.com/v2fly/geoip/releases/latest/download/geoip.dat
@@ -104,7 +102,7 @@ function pasarguard_node_menu() {
   done
 }
 
-# --- 10. SSH Tunnel Function ---
+# --- 8. SSH Tunnel Function ---
 function ssh_tunnel_menu() {
   while true; do
     clear
@@ -152,6 +150,11 @@ case $ash_choice in
         echo ""
         read -p "$(echo -e "${YELLOW}Choice [1-2]: ${NC}")" cipher_choice
         echo ""
+        if [[ -z "$FOREIGN_IP" || ! "$REMOTE_SSH_PORT" =~ ^[0-9]+$ || ! "$CONFIG_PORT" =~ ^[0-9]+$ ]]; then
+            echo -e "${RED}❌ Invalid input (Foreign IP / ports must be filled, ports numeric)${NC}"
+            sleep 2
+            continue
+        fi
         if [[ "$cipher_choice" == "2" ]]; then
             SELECTED_CIPHER="chacha20-poly1305@openssh.com"
         else
@@ -264,33 +267,38 @@ EOF
       if [[ -z "$hours" ]]; then
           echo -e "${RED}Invalid Input! Please Enter A Number${NC}"
           sleep 2
+      elif [[ "$hours" -gt 23 ]]; then
+          echo -e "${RED}Invalid Input! Interval must be between 1 and 23 hours (or 0 to disable)${NC}"
+          sleep 2
       elif [[ "$hours" -eq 0 ]]; then
           (crontab -l 2>/dev/null | grep -v "systemctl restart ssh-tunnel") | crontab -
           echo -e "${RED}🛑 Auto Restart Timer Disabled${NC}"
           read -p "Press any key to continue..." -n1
       else
           (crontab -l 2>/dev/null | grep -v "systemctl restart ssh-tunnel"; echo "0 */$hours * * * systemctl restart ssh-tunnel") | crontab -
-          echo "0 */$hours * * * systemctl restart ssh-tunnel" >> /tmp/cron_temp
-          crontab /tmp/cron_temp
-          rm /tmp/cron_temp
           echo -e "${BLUE}✅ Timer Set! Service Will Restart Every $hours Hour(s)${NC}"
           read -p "Press any key to continue..." -n1
       fi
       ;;
       7)
+        trap ':' INT
         journalctl -u ssh-tunnel.service -f
+        trap - INT
         read -n 1 -s -r -p $'\nPress any key to return...' ;;
       8) break ;;
       *) echo "Invalid option"; sleep 1 ;;
     esac
     done
 } 
-# --- 01. Setup Firewall ---
+# --- 1. Setup Firewall ---
 function setup_firewall() {
   echo -e "\n\033[1;33m[*] Setting up Firewall...\033[0m"
-  apt install ufw -y
+  apt-get install -y ufw
   PORTS=(ssh http https 53/tcp 53/udp 80/tcp 80/udp 2020/tcp 2020/udp 443/tcp 443/udp 8000/tcp 8000/udp 57160/tcp 57160/udp 5629/tcp 5629/udp 1080/tcp 1080/udp 3478/tcp 3478/udp 2096/tcp 2096/udp 3832/tcp 3832/udp 8081/tcp 8081/udp 8082/tcp 8082/udp 2095/tcp 2095/udp 25349/tcp 25349/udp 10000/tcp 10000/udp 11000/tcp 11000/udp 11100/tcp 11100/udp 11200/tcp 11200/udp 11300/tcp 11300/udp 11400/tcp 11400/udp 11500/tcp 11500/udp 11600/tcp 11600/udp 21653/tcp 21653/udp 21652/tcp 21652/udp 14848/tcp 14848/udp 55150/tcp 55150/udp 55151/tcp 55151/udp 55250/tcp 55250/udp 55251/tcp 55251/udp 55350/tcp 55350/udp 55351/tcp 55351/udp 55450/tcp 55450/udp 55451/tcp 55451/udp 55550/tcp 55550/udp 55551/tcp 55551/udp 55650/tcp 55650/udp 55651/tcp 55651/udp 55750/tcp 55750/udp 55751/tcp 55751/udp 55850/tcp 55850/udp 55851/tcp 55851/udp 55950/tcp 55950/udp 55951/tcp 55951/udp 56050/tcp 56050/udp 56051/tcp 56051/udp 5666/tcp 5666/udp 2083/tcp 2083/udp 5201/tcp 5201/udp 8880/tcp 8880/udp 2087/tcp 2087/udp)
   for port in "${PORTS[@]}"; do ufw allow "$port"; done
+  # always keep the real SSH port(s) open (the port may have been changed with option 3)
+  SSH_PORTS=$( { sshd -T 2>/dev/null | awk '/^port /{print $2}'; ss -tlnp 2>/dev/null | awk '/sshd/ {n=split($4,a,":"); print a[n]}'; } | sort -u )
+  for p in $SSH_PORTS; do ufw allow "$p"/tcp; done
   BLOCKED_SUBNETS=(10.0.0.0/8 172.16.0.0/12 192.168.0.0/16 100.64.0.0/10 169.254.0.0/16 240.0.0.0/4 25.10.40.0/24 25.11.10.0/24 103.58.50.0/24 195.137.167.0/24 45.14.174.0/24 206.191.152.0/24 216.218.185.0/24 114.208.187.0/24 185.235.87.0/24 185.235.86.0/24 233.252.0.0/24 224.0.0.0/4 240.0.0.0/24 203.0.113.0/24 198.51.100.0/24 198.18.0.0/15 192.88.99.0/24 192.0.2.0/24 192.0.0.0/24 102.224.45.0/24)
   for subnet in "${BLOCKED_SUBNETS[@]}"; do ufw deny out from any to "$subnet"; done
   echo "y" | sudo ufw enable
@@ -336,7 +344,8 @@ net.ipv4.tcp_keepalive_time = 30
 net.ipv4.tcp_keepalive_intvl = 5
 net.ipv4.tcp_keepalive_probes = 3
 EOF
-  sysctl -p || echo -e "${RED}[!] sysctl reported an error (some key may be unsupported on this kernel)${NC}"
+  modprobe tcp_bbr 2>/dev/null || true
+  sysctl -p "$CONF" || echo -e "${RED}[!] sysctl reported an error (some key may be unsupported on this kernel)${NC}"
   echo -e "${GREEN}[✓] Network Optimized${NC}"
   sleep 1
 }
@@ -345,7 +354,7 @@ function change_ssh_port() {
     echo -e "\n${YELLOW}[*] Changing SSH Port... ${NC}"
     read -p "Enter New SSH Port: " NEW_PORT
 
-    if [[ "$NEW_PORT" =~ ^[0-9]+$ ]] && [ "$NEW_PORT" -gt 0 ]; then
+    if [[ "$NEW_PORT" =~ ^[0-9]+$ ]] && [ "$NEW_PORT" -gt 0 ] && [ "$NEW_PORT" -le 65535 ]; then
 
         if command -v ufw >/dev/null; then
             echo -e "${YELLOW}[*] Updating UFW...${NC}"
@@ -369,10 +378,10 @@ function change_ssh_port() {
         echo -e "${YELLOW}[*] Restarting SSH service...${NC}"
         systemctl daemon-reload
         if systemctl restart sshd 2>/dev/null || systemctl restart ssh 2>/dev/null; then
-            systemctl enable ssh 2>/dev/null || systemctl enable sshd 2>/dev/null
+            systemctl enable ssh 2>/dev/null || systemctl enable sshd 2>/dev/null || true
             echo -e "${GREEN}[✓] SSH Port Successfully Changed To $NEW_PORT ${NC}"
             echo -e "${CYAN}[i] Verifying listening port...${NC}"
-            ss -tlnp | grep ssh
+            ss -tlnp | grep ssh || true
         else
             echo -e "${RED}[!] Failed To Restart SSH. Please Check /etc/ssh/sshd_config Manually ${NC}"
         fi
@@ -386,16 +395,20 @@ function change_ssh_port() {
 function enable_root_login() {
     echo -e "\n${YELLOW}[*] Enabling Direct Root Login... ${NC}"
     
-    read -p "Set a Password for Root user: " ROOT_PASS
+    read -r -p "Set a Password for Root user: " ROOT_PASS
 
     if [ -n "$ROOT_PASS" ]; then
-        echo -e "$ROOT_PASS\n$ROOT_PASS" | sudo passwd root > /dev/null 2>&1
+        echo "root:$ROOT_PASS" | chpasswd
         
         sudo sed -i 's/^#PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
         sudo sed -i 's/^PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
+        grep -q '^PermitRootLogin yes' /etc/ssh/sshd_config || echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config
         
         sudo sed -i 's/^PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
         sudo sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
+        grep -q '^PasswordAuthentication yes' /etc/ssh/sshd_config || echo 'PasswordAuthentication yes' >> /etc/ssh/sshd_config
+        # cloud images ship drop-in files (e.g. 50-cloud-init.conf) that override the main file
+        sudo sed -i 's/^PasswordAuthentication.*/PasswordAuthentication yes/; s/^PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config.d/*.conf 2>/dev/null || true
         
         sudo systemctl restart sshd || sudo service ssh restart
 
@@ -411,13 +424,11 @@ function enable_root_login() {
 function change_root_password() {
     echo -e "\n${YELLOW}[*] Changing Root Password...${NC}"
     
-    read -p "Enter New Root Password: " USER_PASS
+    read -r -p "Enter New Root Password: " USER_PASS
     echo -e "\n"
 
     if [ -n "$USER_PASS" ]; then
-        echo -e "$USER_PASS\n$USER_PASS" | passwd root > /dev/null 2>&1
-        
-        if [ $? -eq 0 ]; then
+        if echo "root:$USER_PASS" | chpasswd; then
             echo -e "${GREEN}[✓] Password Successfully Changed ${NC}"
         else
             echo -e "${RED}[!] Error: Could Not Change Password ${NC}"
@@ -446,7 +457,7 @@ nameserver 8.8.8.8
 EOF'
     
     echo -e "${YELLOW}[*] Locking resolv.conf (immutable)...${NC}"
-    sudo chattr +i /etc/resolv.conf
+    sudo chattr +i /etc/resolv.conf 2>/dev/null || echo -e "${RED}[!] Could not lock resolv.conf (chattr not supported here)${NC}"
     
     echo -e "${GREEN}[✓] DNS Changed Successfully To 1.1.1.1 / 8.8.8.8${NC}"
     echo -e "${CYAN}[i] Current /etc/resolv.conf:${NC}"
@@ -455,7 +466,7 @@ EOF'
     read -n 1 -s -r -p $'\nPress any key to return...'
 }
 
-# --- 07. Backhaul ---
+# --- 5. Backhaul ---
 function Backhual() {
   while true; do
     clear
@@ -468,17 +479,18 @@ function Backhual() {
     echo "4. Return 🔙"
     read -p "Choice: " bh_choice
     case $bh_choice in
-      1) rm -rf /tmp/my-uploads && git clone https://github.com/Alighaemi9731/backhaul.git /tmp/my-uploads
+      1) command -v git >/dev/null 2>&1 || apt-get install -y git
+         rm -rf /tmp/my-uploads && git clone https://github.com/Alighaemi9731/backhaul.git /tmp/my-uploads
          mkdir -p /opt/utunnel && mv /tmp/my-uploads/utunnel /opt/utunnel/utunnel
          mv /tmp/my-uploads/utunnel_manager /root/utunnel_manager && chmod +x /root/utunnel_manager; read -p "Done..." -n1 ;;
-      2) /root/utunnel_manager ;;
+      2) if [ -x /root/utunnel_manager ]; then /root/utunnel_manager; else echo -e "${RED}❌ Not installed. Use option 1 first${NC}"; read -p "Press any key..." -n1; fi ;;
       3) sudo systemctl restart utunnel_king; read -p "Restarted..." -n1 ;;
       4) break ;;
     esac
   done
 }
 
-# --- 08. Gost ---
+# --- 6. Gost ---
 function GostMenu() {
   while true; do
     clear
@@ -502,8 +514,12 @@ function GostMenu() {
     case $gost_choice in
     
       1) if systemctl list-unit-files | grep -q gost.service; then sudo systemctl stop gost || true; fi
-         rm -rf /usr/local/bin/gost && wget https://github.com/go-gost/gost/releases/download/v3.2.6/gost_3.2.6_linux_amd64.tar.gz
-         mkdir -p /usr/local/bin/gost && tar -xvzf gost_3.2.6_linux_amd64.tar.gz -C /usr/local/bin/gost/
+         command -v wget >/dev/null 2>&1 || apt-get install -y wget
+         if ! wget -O /tmp/gost.tar.gz https://github.com/go-gost/gost/releases/download/v3.2.6/gost_3.2.6_linux_amd64.tar.gz; then
+            echo -e "${RED}❌ Download failed${NC}"; read -p "Press any key to continue..." -n1; continue
+         fi
+         rm -rf /usr/local/bin/gost && mkdir -p /usr/local/bin/gost && tar -xzf /tmp/gost.tar.gz -C /usr/local/bin/gost/
+         rm -f /tmp/gost.tar.gz
          
          echo -e "${YELLOW}===============================${NC}"
          echo ""
@@ -558,7 +574,6 @@ EOF
                 curl -s https://get.acme.sh | sh -s email=$RANDOM_EMAIL --force >/dev/null 2>&1
                 ~/.acme.sh/acme.sh --set-default-ca --server letsencrypt
                 
-                export DOMAIN="$G_DOMAIN"
                 mkdir -p /var/lib/mygost/certs
                 ~/.acme.sh/acme.sh \
                   --issue --force --standalone -d "$G_DOMAIN" \
@@ -609,7 +624,7 @@ EOF
 
       5) clear
          echo -e "${YELLOW}Gost Service Status${NC}"
-         sudo systemctl status gost
+         sudo systemctl status gost --no-pager
          echo "---------------------------"
          read -p "Press any key to continue..." -n1 ;;
 
@@ -621,27 +636,34 @@ EOF
          read -p "Press any key to continue..." -n1 ;;
       7) clear
          echo "Press Ctrl+C to exit logs..."
-         journalctl -u gost -f ;;
+         trap ':' INT
+         journalctl -u gost -f
+         trap - INT ;;
          
       8) break ;;
     esac
   done
 }
 
-# --- 09. Lena ---
+# --- 7. Lena ---
 function lena_tunnel() {
   bash <(curl -Ls https://raw.githubusercontent.com/MrAminiDev/LenaTunnel/main/install.sh)
   read -n 1 -s -r -p $'\nDone. Press any key...'
 }
 
-# --- 14. Waterwall Tunnel ---
+# --- 12. Waterwall Tunnel ---
 WW_VERSION="${WW_VERSION:-v1.5.2}"
 WW_DIR="${WW_DIR:-/opt/waterwall}"
 WW_SERVICE="${WW_SERVICE:-/etc/systemd/system/waterwall.service}"
 WW_URL="https://github.com/radkesvat/WaterWall/releases/download/${WW_VERSION}/Waterwall-linux-clang-x64.zip"
 
 function ww_valid_port() { [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -ge 1 ] && [ "$1" -le 65535 ]; }
-function ww_valid_ip() { [[ "$1" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}(/[0-9]{1,2})?$ ]]; }
+function ww_valid_ip() {
+  [[ "$1" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}$ ]] || return 1
+  local o; local IFS=.
+  for o in $1; do [ "$((10#$o))" -le 255 ] || return 1; done
+  return 0
+}
 # secrets are substituted into JSON: only safe characters allowed
 function ww_valid_secret() { [[ "$1" =~ ^[A-Za-z0-9._@#%+=:,-]+$ ]]; }
 function ww_valid_domain() { [[ "$1" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]]; }
@@ -659,10 +681,7 @@ function ww_ask_ip() { # $1=prompt $2=varname
   local v
   while true; do
     read -p "$(echo -e "${YELLOW}$1: ${NC}")" v
-    if ww_valid_ip "$v"; then
-      [[ "$v" == */* ]] || v="$v/32"
-      printf -v "$2" '%s' "$v"; return
-    fi
+    if ww_valid_ip "$v"; then printf -v "$2" '%s' "$v"; return; fi
     echo -e "${RED}Invalid IP${NC}"
   done
 }
@@ -677,13 +696,15 @@ function ww_ask_secret() { # $1=prompt $2=varname
 
 function ww_install_core() {
   echo -e "${YELLOW}[*] Installing Waterwall core ${WW_VERSION}...${NC}"
-  apt-get update -y && apt-get install -y unzip curl libatomic1
+  apt-get update -y && apt-get install -y unzip curl libatomic1 || { echo -e "${RED}❌ apt install failed${NC}"; return 1; }
   mkdir -p "$WW_DIR/configs" "$WW_DIR/logs"
-  cd "$WW_DIR"
-  curl -L -f -o ww.zip "$WW_URL"
-  unzip -o ww.zip
-  chmod +x Waterwall
-  rm -f ww.zip
+  (
+    cd "$WW_DIR" || exit 1
+    curl -L -f -o ww.zip "$WW_URL" || exit 1
+    unzip -o ww.zip || exit 1
+    chmod +x Waterwall
+    rm -f ww.zip
+  ) || { echo -e "${RED}❌ Waterwall core install failed${NC}"; return 1; }
 }
 
 # --- Waterwall templates (exact tested configs; only ports/IPs/secrets are tokens) ---
@@ -1210,17 +1231,14 @@ function ww_install() {
   echo -e "${GREEN} ┇${NC}"; echo -e "${GREEN} ▼${NC}"; echo ""
 
   W_TP=""; W_CP=""; W_FOREIGN_IP=""; W_IRAN_IP=""; W_SECRET=""; W_REALITY_PASS=""; W_SNI=""
-  local ip
   ww_ask_port "Tunnel Port (e.g. 8443)" 8443 W_TP
   echo ""
   ww_ask_port "Config Port (e.g. 443)" 443 W_CP
   echo ""
   if [ "$SIDE" = "iran" ]; then
-    ww_ask_ip "Foreign Server IP " ip
-    W_FOREIGN_IP="${ip%/*}"
+    ww_ask_ip "Foreign Server IP" W_FOREIGN_IP
   else
-    ww_ask_ip "Iran Server IP" ip
-    W_IRAN_IP="${ip%/*}"
+    ww_ask_ip "Iran Server IP" W_IRAN_IP
   fi
   echo ""
   ww_ask_secret "Tunnel Secret (same on both sides)" W_SECRET
@@ -1235,6 +1253,7 @@ function ww_install() {
     done
     echo ""
     if [ "$SIDE" = "iran" ]; then
+      command -v curl >/dev/null 2>&1 || apt-get install -y curl
       echo -e "${YELLOW}[*] Checking $W_SNI:443 from this server...${NC}"
       if curl -sI --max-time 10 "https://$W_SNI" >/dev/null 2>&1; then
         echo -e "${GREEN}[✓] $W_SNI is reachable${NC}"
@@ -1248,12 +1267,11 @@ function ww_install() {
 
   systemctl stop waterwall 2>/dev/null || true
   if [ ! -x "$WW_DIR/Waterwall" ]; then
-    ww_install_core
+    if ! ww_install_core; then read -p "Press any key to continue..." -n1; return 1; fi
   else
     mkdir -p "$WW_DIR/configs" "$WW_DIR/logs"
     echo -e "${CYAN}[i] Waterwall core already installed (use 'Update Core' to replace)${NC}"
   fi
-  cd "$WW_DIR"
 
   local CFG
   if [ "$SIDE" = "iran" ]; then CFG="reverse-server.json"; rm -f "$WW_DIR/configs/reverse-client.json"
@@ -1313,12 +1331,14 @@ function waterwall_menu() {
       3) systemctl stop waterwall && systemctl disable waterwall
          echo -e "${RED}🛑 Tunnel Stopped${NC}"
          read -p "Press any key to continue..." -n1 ;;
-      4) clear; systemctl status waterwall --no-pager || true
+      4) clear; systemctl status waterwall --no-pager
          echo ""
-         echo -e "${CYAN}Tunnel connections (port from config):${NC}"
-         grep -ho '"port": [0-9]*' "$WW_DIR"/configs/*.json 2>/dev/null | sort -u
+         journalctl -u waterwall -n 10 --no-pager
          read -p "Press any key to continue..." -n1 ;;
-      5) echo "Press Ctrl+C to exit logs..."; journalctl -u waterwall -f || true ;;
+      5) echo "Press Ctrl+C to exit logs..."
+         trap ':' INT
+         journalctl -u waterwall -f
+         trap - INT ;;
       6) if ls "$WW_DIR"/configs/*.json >/dev/null 2>&1; then
            for f in "$WW_DIR"/configs/*.json; do nano "$f"; done
            systemctl restart waterwall && echo -e "${BLUE}✅ Edited & Restarted${NC}"
@@ -1332,7 +1352,7 @@ function waterwall_menu() {
       8) systemctl stop waterwall 2>/dev/null || true
          systemctl disable waterwall 2>/dev/null || true
          rm -f "$WW_SERVICE"
-         rm -rf "$WW_DIR"
+         cd / && rm -rf "$WW_DIR"
          systemctl daemon-reload || true
          echo -e "${RED}❌ Waterwall Tunnel Uninstalled${NC}"
          read -p "Press any key to continue..." -n1 ;;
@@ -1385,7 +1405,7 @@ function main_menu() {
       10) enable_root_login ;;
       11) change_dns ;;
       12) waterwall_menu ;;
-      0|0) exit 0 ;;
+      0) exit 0 ;;
       *) echo "Invalid option"; sleep 1 ;;
     esac
   done
