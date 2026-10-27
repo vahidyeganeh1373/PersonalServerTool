@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION="0.3.6"
+VERSION="0.3.9"
 SERVER_IP=$(hostname -I | awk '{print $1}')
 
 # Colors
@@ -297,27 +297,48 @@ function setup_firewall() {
   read -n 1 -s -r -p $'\033[1;35m\n[✓] Done. Press any key to return\033[0m'
 }
 
-function install_bbr() {
-  echo "Optimizing network with BBR..."
-  if ! grep -q "net.core.default_qdisc=fq" /etc/sysctl.conf; then
-    echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf
-  fi
-  if ! grep -q "net.ipv4.tcp_congestion_control=bbr" /etc/sysctl.conf; then
-    echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
-  fi
-  sysctl -p
-  echo "BBR Optimization Applied Successfully!"
-  read -n 1 -s -r -p $'\nPress any key to return'
-}
-
 function optimize_network() {
-  keys=("net.ipv4.tcp_keepalive_time" "net.ipv4.tcp_keepalive_intvl" "net.ipv4.tcp_keepalive_probes" "net.ipv4.tcp_fastopen" "net.ipv4.tcp_slow_start_after_idle" "net.ipv4.tcp_mtu_probing")
+  local CONF="${SYSCTL_CONF:-/etc/sysctl.conf}"
+  echo -e "\n${YELLOW}[*] Optimizing Network...${NC}"
+  local keys=(
+    net.ipv4.tcp_syncookies
+    net.core.default_qdisc
+    net.ipv4.tcp_congestion_control
+    net.ipv4.tcp_max_syn_backlog
+    net.core.somaxconn
+    net.core.netdev_max_backlog
+    net.ipv4.tcp_fastopen
+    net.ipv4.tcp_tw_reuse
+    net.ipv4.tcp_mtu_probing
+    net.ipv4.tcp_slow_start_after_idle
+    net.ipv4.tcp_keepalive_time
+    net.ipv4.tcp_keepalive_intvl
+    net.ipv4.tcp_keepalive_probes
+  )
+  touch "$CONF"
+  # remove any previous entry of these keys (old script, manual edits), then add the fresh block
   for key in "${keys[@]}"; do
-    case $key in net.ipv4.tcp_keepalive_time) v=30;; net.ipv4.tcp_keepalive_intvl) v=10;; net.ipv4.tcp_keepalive_probes) v=3;; net.ipv4.tcp_fastopen) v=3;; net.ipv4.tcp_slow_start_after_idle) v=0;; net.ipv4.tcp_mtu_probing) v=1;; esac
-    grep -q "^$key" /etc/sysctl.conf && sed -i "s|^$key.*|$key = $v|" /etc/sysctl.conf || echo "$key = $v" | sudo tee -a /etc/sysctl.conf
+    sed -i "/^[[:space:]]*${key//./\\.}[[:space:]]*=/d" "$CONF"
   done
-  sudo sysctl -p > /dev/null
-  read -n 1 -s -r -p $'\n[✓] Optimization Applied. Press any key'
+  cat >> "$CONF" <<EOF
+
+net.ipv4.tcp_syncookies = 1
+net.core.default_qdisc = fq
+net.ipv4.tcp_congestion_control = bbr
+net.ipv4.tcp_max_syn_backlog = 4096
+net.core.somaxconn = 8192
+net.core.netdev_max_backlog = 4096
+net.ipv4.tcp_fastopen = 3
+net.ipv4.tcp_tw_reuse = 1
+net.ipv4.tcp_mtu_probing = 1
+net.ipv4.tcp_slow_start_after_idle = 0
+net.ipv4.tcp_keepalive_time = 30
+net.ipv4.tcp_keepalive_intvl = 5
+net.ipv4.tcp_keepalive_probes = 3
+EOF
+  sysctl -p || echo -e "${RED}[!] sysctl reported an error (some key may be unsupported on this kernel)${NC}"
+  echo -e "${GREEN}[✓] Network Optimized${NC}"
+  sleep 1
 }
 
 function change_ssh_port() {
@@ -432,60 +453,6 @@ EOF'
     cat /etc/resolv.conf
     
     read -n 1 -s -r -p $'\nPress any key to return...'
-}
-
-# --- 06. Marzban Node ---
-function install_marzban_node() {
-  while true; do
-    clear
-    echo "==============================="
-    echo "       Marzban-node Menu       "
-    echo "==============================="
-    echo "1. Install ⬇️"
-    echo "2. Restart ♻️"
-    echo "3. Update Core"
-    echo "4. Return 🔙"
-    read -p "Select choice: " marzban_choice
-    case $marzban_choice in
-      1)
-        apt update && apt upgrade -y && apt install socat curl git -y
-        mkdir -p /var/lib/marzban-node/assets/
-        wget -O /var/lib/marzban-node/assets/geosite.dat https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat
-        wget -O /var/lib/marzban-node/assets/geoip.dat https://github.com/v2fly/geoip/releases/latest/download/geoip.dat
-        wget -O /var/lib/marzban-node/assets/iran.dat https://github.com/bootmortis/iran-hosted-domains/releases/latest/download/iran.dat
-        git clone https://github.com/Gozargah/Marzban-node && cd Marzban-node
-        curl -fsSL https://get.docker.com | sh
-        cat > docker-compose.yml <<EOF
-services:
-  marzban-node:
-    image: gozargah/marzban-node:latest
-    restart: always
-    network_mode: host
-    environment:
-      SSL_CLIENT_CERT_FILE: "/var/lib/marzban-node/ssl_client_cert.pem"
-      XRAY_EXECUTABLE_PATH: "/var/lib/marzban/xray-core/xray"
-      SERVICE_PROTOCOL: "rest"
-      SERVICE_PORT: 40050
-      XRAY_API_PORT: 40051
-    volumes:
-      - /var/lib/marzban:/var/lib/marzban
-      - /var/lib/marzban-node:/var/lib/marzban-node
-      - /var/lib/marzban-node/assets:/usr/local/share/xray
-EOF
-        mkdir -p /var/lib/marzban/xray-core && cd /var/lib/marzban/xray-core
-        wget https://github.com/XTLS/Xray-core/releases/download/v25.3.6/Xray-linux-64.zip
-        apt install unzip -y && unzip Xray-linux-64.zip && rm Xray-linux-64.zip
-        cd ~/Marzban-node && docker compose down && docker compose up -d
-        read -p "Done. Press any key..." -n1 ;;
-      2) cd ~/Marzban-node && docker compose down && docker compose up -d; read -p "Restarted..." -n1 ;;
-      3) cd ~/Marzban-node && docker compose down && rm -rf /var/lib/marzban/xray-core
-         mkdir -p /var/lib/marzban/xray-core && cd /var/lib/marzban/xray-core
-         wget https://github.com/XTLS/xray-core/releases/latest/download/Xray-linux-64.zip
-         unzip Xray-linux-64.zip && rm Xray-linux-64.zip
-         cd ~/Marzban-node && docker compose up -d; read -p "Updated..." -n1 ;;
-      4) break ;;
-    esac
-  done
 }
 
 # --- 07. Backhaul ---
@@ -667,6 +634,714 @@ function lena_tunnel() {
   read -n 1 -s -r -p $'\nDone. Press any key...'
 }
 
+# --- 14. Waterwall Tunnel ---
+WW_VERSION="${WW_VERSION:-v1.5.2}"
+WW_DIR="${WW_DIR:-/opt/waterwall}"
+WW_SERVICE="${WW_SERVICE:-/etc/systemd/system/waterwall.service}"
+WW_URL="https://github.com/radkesvat/WaterWall/releases/download/${WW_VERSION}/Waterwall-linux-clang-x64.zip"
+
+function ww_valid_port() { [[ "$1" =~ ^[0-9]+$ ]] && [ "$1" -ge 1 ] && [ "$1" -le 65535 ]; }
+function ww_valid_ip() { [[ "$1" =~ ^[0-9]{1,3}(\.[0-9]{1,3}){3}(/[0-9]{1,2})?$ ]]; }
+# secrets are substituted into JSON: only safe characters allowed
+function ww_valid_secret() { [[ "$1" =~ ^[A-Za-z0-9._@#%+=:,-]+$ ]]; }
+function ww_valid_domain() { [[ "$1" =~ ^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?$ ]]; }
+
+function ww_ask_port() { # $1=prompt $2=default $3=varname
+  local v
+  while true; do
+    read -p "$(echo -e "${YELLOW}$1 [$2]: ${NC}")" v
+    v=${v:-$2}
+    if ww_valid_port "$v"; then printf -v "$3" '%s' "$v"; return; fi
+    echo -e "${RED}Invalid port${NC}"
+  done
+}
+function ww_ask_ip() { # $1=prompt $2=varname
+  local v
+  while true; do
+    read -p "$(echo -e "${YELLOW}$1: ${NC}")" v
+    if ww_valid_ip "$v"; then
+      [[ "$v" == */* ]] || v="$v/32"
+      printf -v "$2" '%s' "$v"; return
+    fi
+    echo -e "${RED}Invalid IP${NC}"
+  done
+}
+function ww_ask_secret() { # $1=prompt $2=varname
+  local v
+  while true; do
+    read -p "$(echo -e "${YELLOW}$1: ${NC}")" v
+    if ww_valid_secret "$v"; then printf -v "$2" '%s' "$v"; return; fi
+    echo -e "${RED}Allowed characters: A-Z a-z 0-9 . _ @ # % + = : , -  (no spaces)${NC}"
+  done
+}
+
+function ww_install_core() {
+  echo -e "${YELLOW}[*] Installing Waterwall core ${WW_VERSION}...${NC}"
+  apt-get update -y && apt-get install -y unzip curl libatomic1
+  mkdir -p "$WW_DIR/configs" "$WW_DIR/logs"
+  cd "$WW_DIR"
+  curl -L -f -o ww.zip "$WW_URL"
+  unzip -o ww.zip
+  chmod +x Waterwall
+  rm -f ww.zip
+}
+
+# --- Waterwall templates (exact tested configs; only ports/IPs/secrets are tokens) ---
+function ww_tpl_config() { # $1 = raw|reality|hd  $2 = iran|foreign
+  case "$1-$2" in
+  raw-iran) cat <<'WWTPL'
+{
+  "name": "iran-reverse-raw",
+  "author": "waterwall-user",
+  "config-version": 1,
+  "core-minimum-version": 0,
+  "nodes": [
+    {
+      "name": "users_inbound",
+      "type": "TcpListener",
+      "settings": {
+        "address": "0.0.0.0",
+        "port": __CONFIG_PORT__,
+        "nodelay": true
+      },
+      "next": "bridge_users"
+    },
+    {
+      "name": "bridge_users",
+      "type": "Bridge",
+      "settings": {
+        "pair": "bridge_reverse"
+      }
+    },
+    {
+      "name": "bridge_reverse",
+      "type": "Bridge",
+      "settings": {
+        "pair": "bridge_users"
+      }
+    },
+    {
+      "name": "reverse_server",
+      "type": "ReverseServer",
+      "settings": {
+        "reverse-secret-length": 640,
+        "reverse-secret": "__SECRET__"
+      },
+      "next": "bridge_reverse"
+    },
+    {
+      "name": "peers_inbound",
+      "type": "TcpListener",
+      "settings": {
+        "address": "0.0.0.0",
+        "port": __TUNNEL_PORT__,
+        "nodelay": true,
+        "whitelist": [
+          "__FOREIGN_IP__/32"
+        ]
+      },
+      "next": "reverse_server"
+    }
+  ]
+}
+WWTPL
+  ;;
+  raw-foreign) cat <<'WWTPL'
+{
+  "name": "foreign-reverse-raw",
+  "author": "waterwall-user",
+  "config-version": 1,
+  "core-minimum-version": 0,
+  "nodes": [
+    {
+      "name": "local_service",
+      "type": "TcpConnector",
+      "settings": {
+        "address": "127.0.0.1",
+        "port": __CONFIG_PORT__,
+        "nodelay": true
+      }
+    },
+    {
+      "name": "bridge_local",
+      "type": "Bridge",
+      "settings": {
+        "pair": "bridge_reverse"
+      },
+      "next": "local_service"
+    },
+    {
+      "name": "bridge_reverse",
+      "type": "Bridge",
+      "settings": {
+        "pair": "bridge_local"
+      },
+      "next": "reverse_client"
+    },
+    {
+      "name": "reverse_client",
+      "type": "ReverseClient",
+      "settings": {
+        "minimum-unused": 32,
+        "reverse-secret-length": 640,
+        "reverse-secret": "__SECRET__"
+      },
+      "next": "to_iran"
+    },
+    {
+      "name": "to_iran",
+      "type": "TcpConnector",
+      "settings": {
+        "address": "__IRAN_IP__",
+        "port": __TUNNEL_PORT__,
+        "nodelay": true
+      }
+    }
+  ]
+}
+WWTPL
+  ;;
+  reality-iran) cat <<'WWTPL'
+{
+  "name": "iran-reverse-reality",
+  "author": "waterwall-user",
+  "config-version": 1,
+  "core-minimum-version": 0,
+  "nodes": [
+    {
+      "name": "users_inbound",
+      "type": "TcpListener",
+      "settings": {
+        "address": "0.0.0.0",
+        "port": __CONFIG_PORT__,
+        "nodelay": true
+      },
+      "next": "bridge_users"
+    },
+    {
+      "name": "bridge_users",
+      "type": "Bridge",
+      "settings": {
+        "pair": "bridge_reverse"
+      }
+    },
+    {
+      "name": "bridge_reverse",
+      "type": "Bridge",
+      "settings": {
+        "pair": "bridge_users"
+      }
+    },
+    {
+      "name": "reverse_server",
+      "type": "ReverseServer",
+      "settings": {
+        "reverse-secret-length": 640,
+        "reverse-secret": "__SECRET__"
+      },
+      "next": "bridge_reverse"
+    },
+    {
+      "name": "reality_server",
+      "type": "RealityServer",
+      "settings": {
+        "destination": "visitor_site",
+        "password": "__REALITY_PASS__",
+        "algorithm": "chacha20-poly1305",
+        "sniffing-attempts": 8
+      },
+      "next": "reverse_server"
+    },
+    {
+      "name": "visitor_site",
+      "type": "TcpConnector",
+      "settings": {
+        "address": "__SNI__",
+        "port": 443,
+        "nodelay": true
+      }
+    },
+    {
+      "name": "peers_inbound",
+      "type": "TcpListener",
+      "settings": {
+        "address": "0.0.0.0",
+        "port": __TUNNEL_PORT__,
+        "nodelay": true,
+        "whitelist": [
+          "__FOREIGN_IP__/32"
+        ]
+      },
+      "next": "reality_server"
+    }
+  ]
+}
+WWTPL
+  ;;
+  reality-foreign) cat <<'WWTPL'
+{
+  "name": "foreign-reverse-reality",
+  "author": "waterwall-user",
+  "config-version": 1,
+  "core-minimum-version": 0,
+  "nodes": [
+    {
+      "name": "local_service",
+      "type": "TcpConnector",
+      "settings": {
+        "address": "127.0.0.1",
+        "port": __CONFIG_PORT__,
+        "nodelay": true
+      }
+    },
+    {
+      "name": "bridge_local",
+      "type": "Bridge",
+      "settings": {
+        "pair": "bridge_reverse"
+      },
+      "next": "local_service"
+    },
+    {
+      "name": "bridge_reverse",
+      "type": "Bridge",
+      "settings": {
+        "pair": "bridge_local"
+      },
+      "next": "reverse_client"
+    },
+    {
+      "name": "reverse_client",
+      "type": "ReverseClient",
+      "settings": {
+        "minimum-unused": 64,
+        "reverse-secret-length": 640,
+        "reverse-secret": "__SECRET__"
+      },
+      "next": "reality_client"
+    },
+    {
+      "name": "reality_client",
+      "type": "RealityClient",
+      "settings": {
+        "sni": "__SNI__",
+        "verify": true,
+        "password": "__REALITY_PASS__",
+        "algorithm": "chacha20-poly1305"
+      },
+      "next": "to_iran"
+    },
+    {
+      "name": "to_iran",
+      "type": "TcpConnector",
+      "settings": {
+        "address": "__IRAN_IP__",
+        "port": __TUNNEL_PORT__,
+        "nodelay": true
+      }
+    }
+  ]
+}
+WWTPL
+  ;;
+  hd-iran) cat <<'WWTPL'
+{
+  "name": "iran-reverse-halfduplex",
+  "author": "waterwall-user",
+  "config-version": 1,
+  "core-minimum-version": 0,
+  "nodes": [
+    {
+      "name": "users_inbound",
+      "type": "TcpListener",
+      "settings": {
+        "address": "0.0.0.0",
+        "port": __CONFIG_PORT__,
+        "nodelay": true
+      },
+      "next": "bridge_users"
+    },
+    {
+      "name": "bridge_users",
+      "type": "Bridge",
+      "settings": {
+        "pair": "bridge_reverse"
+      }
+    },
+    {
+      "name": "bridge_reverse",
+      "type": "Bridge",
+      "settings": {
+        "pair": "bridge_users"
+      }
+    },
+    {
+      "name": "reverse_server",
+      "type": "ReverseServer",
+      "settings": {
+        "reverse-secret-length": 640,
+        "reverse-secret": "__SECRET__"
+      },
+      "next": "bridge_reverse"
+    },
+    {
+      "name": "halfduplex_server",
+      "type": "HalfDuplexServer",
+      "settings": {},
+      "next": "reverse_server"
+    },
+    {
+      "name": "peers_inbound",
+      "type": "TcpListener",
+      "settings": {
+        "address": "0.0.0.0",
+        "port": __TUNNEL_PORT__,
+        "nodelay": true,
+        "whitelist": [
+          "__FOREIGN_IP__/32"
+        ]
+      },
+      "next": "halfduplex_server"
+    }
+  ]
+}
+WWTPL
+  ;;
+  hd-foreign) cat <<'WWTPL'
+{
+  "name": "foreign-reverse-halfduplex",
+  "author": "waterwall-user",
+  "config-version": 1,
+  "core-minimum-version": 0,
+  "nodes": [
+    {
+      "name": "local_service",
+      "type": "TcpConnector",
+      "settings": {
+        "address": "127.0.0.1",
+        "port": __CONFIG_PORT__,
+        "nodelay": true
+      }
+    },
+    {
+      "name": "bridge_local",
+      "type": "Bridge",
+      "settings": {
+        "pair": "bridge_reverse"
+      },
+      "next": "local_service"
+    },
+    {
+      "name": "bridge_reverse",
+      "type": "Bridge",
+      "settings": {
+        "pair": "bridge_local"
+      },
+      "next": "reverse_client"
+    },
+    {
+      "name": "reverse_client",
+      "type": "ReverseClient",
+      "settings": {
+        "minimum-unused": 128,
+        "reverse-secret-length": 640,
+        "reverse-secret": "__SECRET__"
+      },
+      "next": "halfduplex_client"
+    },
+    {
+      "name": "halfduplex_client",
+      "type": "HalfDuplexClient",
+      "settings": {},
+      "next": "to_iran"
+    },
+    {
+      "name": "to_iran",
+      "type": "TcpConnector",
+      "settings": {
+        "address": "__IRAN_IP__",
+        "port": __TUNNEL_PORT__,
+        "nodelay": true
+      }
+    }
+  ]
+}
+WWTPL
+  ;;
+  esac
+}
+
+function ww_tpl_core() { # $1 = iran|foreign
+  case "$1" in
+  iran) cat <<'WWTPL'
+{
+  "log": {
+    "path": "logs/",
+    "core": { "loglevel": "INFO", "file": "core.log", "console": true },
+    "network": { "loglevel": "WARN", "file": "network.log", "console": true },
+    "dns": { "loglevel": "WARN", "file": "dns.log", "console": false },
+    "internal": { "loglevel": "WARN", "file": "internal.log", "console": false }
+  },
+  "misc": {
+    "workers": 2,
+    "ram-profile": "server",
+    "mtu": 1500,
+    "try-enabling-bbr": true,
+    "libs-path": "libs/"
+  },
+  "dns": {
+    "domain-strategy": "prefer-ipv4"
+  },
+  "configs": [
+    "configs/reverse-server.json"
+  ]
+}
+WWTPL
+  ;;
+  foreign) cat <<'WWTPL'
+{
+  "log": {
+    "path": "logs/",
+    "core": { "loglevel": "INFO", "file": "core.log", "console": true },
+    "network": { "loglevel": "WARN", "file": "network.log", "console": true },
+    "dns": { "loglevel": "WARN", "file": "dns.log", "console": false },
+    "internal": { "loglevel": "WARN", "file": "internal.log", "console": false }
+  },
+  "misc": {
+    "workers": 2,
+    "ram-profile": "client-larger",
+    "mtu": 1500,
+    "try-enabling-bbr": true,
+    "libs-path": "libs/"
+  },
+  "dns": {
+    "domain-strategy": "prefer-ipv4"
+  },
+  "configs": [
+    "configs/reverse-client.json"
+  ]
+}
+WWTPL
+  ;;
+  esac
+}
+
+function ww_tpl_service() { # $1 = iran|foreign
+  case "$1" in
+  iran) cat <<'WWTPL'
+[Unit]
+Description=WaterWall tunnel (Iran side)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/waterwall
+ExecStart=/opt/waterwall/Waterwall
+Restart=always
+RestartSec=3
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target
+WWTPL
+  ;;
+  foreign) cat <<'WWTPL'
+[Unit]
+Description=WaterWall tunnel (foreign side)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/waterwall
+ExecStart=/opt/waterwall/Waterwall
+Restart=always
+RestartSec=3
+LimitNOFILE=1048576
+
+[Install]
+WantedBy=multi-user.target
+WWTPL
+  ;;
+  esac
+}
+
+
+# fills a template: $1=text, then tokens from globals
+function ww_fill() {
+  local t="$1"
+  t="${t//__CONFIG_PORT__/$W_CP}"
+  t="${t//__TUNNEL_PORT__/$W_TP}"
+  t="${t//__FOREIGN_IP__/$W_FOREIGN_IP}"
+  t="${t//__IRAN_IP__/$W_IRAN_IP}"
+  t="${t//__SECRET__/$W_SECRET}"
+  t="${t//__REALITY_PASS__/$W_REALITY_PASS}"
+  t="${t//__SNI__/$W_SNI}"
+  printf '%s\n' "$t"
+}
+
+function ww_install() {
+  echo -e "\n${YELLOW}[*] Setting up Waterwall Tunnel... ${NC}"
+  echo ""
+  echo -e "${YELLOW}Select Tunnel Type:${NC}"
+  echo ""
+  echo -e "${YELLOW}1. Reverse TCP${NC}"
+  echo -e "${YELLOW}2. Reverse TCP Reality${NC}"
+  echo -e "${YELLOW}3. Reverse TCP HalfDuplex${NC}"
+  echo ""
+  local T KIND
+  while true; do
+    read -p "$(echo -e "${YELLOW}Choice [1-3]: ${NC}")" T
+    [[ "$T" =~ ^[123]$ ]] && break
+    echo -e "${RED}Invalid option${NC}"
+  done
+  case $T in 1) KIND=raw ;; 2) KIND=reality ;; 3) KIND=hd ;; esac
+  echo ""
+  echo -e "${GREEN} ┇${NC}"; echo -e "${GREEN} ▼${NC}"; echo ""
+  local SIDE_N SIDE
+  while true; do
+    read -p "$(echo -e "${YELLOW}Server Side - Iran = 1 , Foreign = 2 | (e.g. 1): ${NC}")" SIDE_N
+    [[ "$SIDE_N" =~ ^[12]$ ]] && break
+    echo -e "${RED}Invalid option${NC}"
+  done
+  if [ "$SIDE_N" = "1" ]; then SIDE=iran; else SIDE=foreign; fi
+  echo ""
+  echo -e "${GREEN} ┇${NC}"; echo -e "${GREEN} ▼${NC}"; echo ""
+
+  W_TP=""; W_CP=""; W_FOREIGN_IP=""; W_IRAN_IP=""; W_SECRET=""; W_REALITY_PASS=""; W_SNI=""
+  local ip
+  ww_ask_port "Tunnel Port (e.g. 8443)" 8443 W_TP
+  echo ""
+  ww_ask_port "Config Port (e.g. 443)" 443 W_CP
+  echo ""
+  if [ "$SIDE" = "iran" ]; then
+    ww_ask_ip "Foreign Server IP (allowed to connect to tunnel port)" ip
+    W_FOREIGN_IP="${ip%/*}"
+  else
+    ww_ask_ip "Iran Server IP" ip
+    W_IRAN_IP="${ip%/*}"
+  fi
+  echo ""
+  ww_ask_secret "Tunnel Secret (same on both sides)" W_SECRET
+  echo ""
+  if [ "$KIND" = "reality" ]; then
+    ww_ask_secret "Reality Password (same on both sides)" W_REALITY_PASS
+    echo ""
+    while true; do
+      read -p "$(echo -e "${YELLOW}SNI / Visitor Domain (same on both sides, e.g. www.example.com): ${NC}")" W_SNI
+      ww_valid_domain "$W_SNI" && break
+      echo -e "${RED}Invalid domain${NC}"
+    done
+    echo ""
+    if [ "$SIDE" = "iran" ]; then
+      echo -e "${YELLOW}[*] Checking $W_SNI:443 from this server...${NC}"
+      if curl -sI --max-time 10 "https://$W_SNI" >/dev/null 2>&1; then
+        echo -e "${GREEN}[✓] $W_SNI is reachable${NC}"
+      else
+        echo -e "${RED}[!] $W_SNI is NOT reachable from this server (Reality handshake will fail)${NC}"
+        read -p "$(echo -e "${YELLOW}Continue anyway? [y/N]: ${NC}")" go_on
+        [[ "$go_on" =~ ^[Yy]$ ]] || { echo -e "${RED}Aborted${NC}"; return 0; }
+      fi
+    fi
+  fi
+
+  systemctl stop waterwall 2>/dev/null || true
+  if [ ! -x "$WW_DIR/Waterwall" ]; then
+    ww_install_core
+  else
+    mkdir -p "$WW_DIR/configs" "$WW_DIR/logs"
+    echo -e "${CYAN}[i] Waterwall core already installed (use 'Update Core' to replace)${NC}"
+  fi
+  cd "$WW_DIR"
+
+  local CFG
+  if [ "$SIDE" = "iran" ]; then CFG="reverse-server.json"; rm -f "$WW_DIR/configs/reverse-client.json"
+  else CFG="reverse-client.json"; rm -f "$WW_DIR/configs/reverse-server.json"; fi
+
+  ww_fill "$(ww_tpl_core "$SIDE")"            > "$WW_DIR/core.json"
+  ww_fill "$(ww_tpl_config "$KIND" "$SIDE")"  > "$WW_DIR/configs/$CFG"
+  ww_fill "$(ww_tpl_service "$SIDE")"         > "$WW_SERVICE"
+  sed -i "s|^WorkingDirectory=.*|WorkingDirectory=${WW_DIR}|; s|^ExecStart=.*|ExecStart=${WW_DIR}/Waterwall|" "$WW_SERVICE"
+
+  if [ "$SIDE" = "iran" ] && command -v ufw >/dev/null 2>&1; then
+    ufw allow from "$W_FOREIGN_IP" to any port "$W_TP" proto tcp >/dev/null 2>&1 || true
+    ufw allow "$W_CP"/tcp >/dev/null 2>&1 || true
+  fi
+
+  systemctl daemon-reload
+  systemctl enable waterwall
+  systemctl start waterwall
+  systemctl restart waterwall || echo -e "${RED}Failed To Start Service!${NC}"
+
+  sleep 2
+  echo ""
+  if systemctl is-active --quiet waterwall; then
+    echo -e "${BLUE}✅ Done! Waterwall Tunnel Is Running${NC}"
+  else
+    echo -e "${RED}❌ Service is not running. Check: journalctl -u waterwall -n 50${NC}"
+  fi
+  if [ "$SIDE" = "iran" ]; then
+    echo -e "${CYAN}[i] Now set up the Foreign side. Then check: ss -tn | grep :$W_TP | wc -l${NC}"
+  fi
+  read -p "Press any key to continue..." -n1
+}
+
+function waterwall_menu() {
+  while true; do
+    clear
+    echo -e "${YELLOW}===============================${NC}"
+    echo -e "${YELLOW}       Waterwall Tunnel        ${NC}"
+    echo -e "${YELLOW}===============================${NC}"
+    echo ""
+    echo "1. Install / ReConfig"
+    echo "2. Restart"
+    echo "3. Stop"
+    echo "4. Status"
+    echo "5. Logs"
+    echo "6. Edit Configs"
+    echo "7. Update Core"
+    echo "8. Uninstall"
+    echo ""
+    echo "9. Return"
+    echo ""
+    read -p "$(echo -e "${YELLOW}Choice: ${NC}")" ww_choice
+    case $ww_choice in
+      1) ww_install ;;
+      2) systemctl daemon-reload && systemctl restart waterwall && echo -e "${BLUE}✅ Service Restarted${NC}" || echo -e "${RED}❌ Failed${NC}"
+         read -p "Press any key to continue..." -n1 ;;
+      3) systemctl stop waterwall && systemctl disable waterwall
+         echo -e "${RED}🛑 Tunnel Stopped${NC}"
+         read -p "Press any key to continue..." -n1 ;;
+      4) clear; systemctl status waterwall --no-pager || true
+         echo ""
+         echo -e "${CYAN}Tunnel connections (port from config):${NC}"
+         grep -ho '"port": [0-9]*' "$WW_DIR"/configs/*.json 2>/dev/null | sort -u
+         read -p "Press any key to continue..." -n1 ;;
+      5) echo "Press Ctrl+C to exit logs..."; journalctl -u waterwall -f || true ;;
+      6) if ls "$WW_DIR"/configs/*.json >/dev/null 2>&1; then
+           for f in "$WW_DIR"/configs/*.json; do nano "$f"; done
+           systemctl restart waterwall && echo -e "${BLUE}✅ Edited & Restarted${NC}"
+         else
+           echo -e "${RED}❌ Config Not Found. Install First${NC}"
+         fi
+         read -p "Press any key to continue..." -n1 ;;
+      7) systemctl stop waterwall 2>/dev/null || true
+         ww_install_core && systemctl start waterwall && echo -e "${BLUE}✅ Core Updated ($WW_VERSION)${NC}"
+         read -p "Press any key to continue..." -n1 ;;
+      8) systemctl stop waterwall 2>/dev/null || true
+         systemctl disable waterwall 2>/dev/null || true
+         rm -f "$WW_SERVICE"
+         rm -rf "$WW_DIR"
+         systemctl daemon-reload || true
+         echo -e "${RED}❌ Waterwall Tunnel Uninstalled${NC}"
+         read -p "Press any key to continue..." -n1 ;;
+      9) break ;;
+      *) echo "Invalid option"; sleep 1 ;;
+    esac
+  done
+}
+
 # --- Main Menu ---
 function main_menu() {
   while true; do
@@ -678,19 +1353,18 @@ function main_menu() {
     echo -e "${BLUE}         Server IP : ${BLUE}$SERVER_IP${NC}"
     echo -e "${YELLOW}===========================================${NC}"
     echo ""
-    echo -e "${CYAN}1)${NC} Setup Firewall"
-    echo -e "${CYAN}2)${NC} Install BBR"
-    echo -e "${CYAN}3)${NC} Optimize Network"
-    echo -e "${CYAN}4)${NC} Change SSH Port"
-    echo -e "${CYAN}5)${NC} Change Root Password"
-    echo -e "${CYAN}6)${NC} Marzban Node"
-    echo -e "${CYAN}7)${NC} Backhual Tunnel (Premium)"
-    echo -e "${CYAN}8)${NC} GOST Tunnel (Relay + WSS + MUX)"
-    echo -e "${CYAN}9)${NC} Lena Tunnel"
-    echo -e "${CYAN}10)${NC} SSH Tunnel + Encryption (Just Iran Side)"
-    echo -e "${CYAN}11)${NC} Pasarguard Node"
-    echo -e "${CYAN}12)${NC} Enable Root Login"
-    echo -e "${CYAN}13)${NC} Change DNS"
+    echo -e "${CYAN}1)${NC} Setup Firewall (For Hetzner Abuse)"
+    echo -e "${CYAN}2)${NC} Optimize Network"
+    echo -e "${CYAN}3)${NC} Change SSH Port"
+    echo -e "${CYAN}4)${NC} Change Root Password"
+    echo -e "${CYAN}5)${NC} Backhual Tunnel (Premium)"
+    echo -e "${CYAN}6)${NC} GOST Tunnel (Relay + WSS + MUX)"
+    echo -e "${CYAN}7)${NC} Lena Tunnel"
+    echo -e "${CYAN}8)${NC} SSH Tunnel + Encryption (Just Iran Side)"
+    echo -e "${CYAN}9)${NC} Pasarguard Node"
+    echo -e "${CYAN}10)${NC} Enable Root Login"
+    echo -e "${CYAN}11)${NC} Change DNS"
+    echo -e "${CYAN}12)${NC} Waterwall Tunnel"
     echo -e "${CYAN}0)${NC} Exit"
     echo ""
     echo -e "${YELLOW}===========================================${NC}"
@@ -700,18 +1374,17 @@ function main_menu() {
 
     case $choice in
       1) setup_firewall ;;
-      2) install_bbr ;;
-      3) optimize_network ;;
-      4) change_ssh_port ;;
-      5) change_root_password ;;
-      6) install_marzban_node ;;
-      7) Backhual ;;
-      8) GostMenu ;;
-      9) lena_tunnel ;;
-      10) ssh_tunnel_menu ;;
-      11) pasarguard_node_menu ;;
-      12) enable_root_login ;;
-      13) change_dns ;;
+      2) optimize_network ;;
+      3) change_ssh_port ;;
+      4) change_root_password ;;
+      5) Backhual ;;
+      6) GostMenu ;;
+      7) lena_tunnel ;;
+      8) ssh_tunnel_menu ;;
+      9) pasarguard_node_menu ;;
+      10) enable_root_login ;;
+      11) change_dns ;;
+      12) waterwall_menu ;;
       0|0) exit 0 ;;
       *) echo "Invalid option"; sleep 1 ;;
     esac
