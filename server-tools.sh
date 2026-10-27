@@ -1364,7 +1364,7 @@ function main_menu() {
     echo -e "${CYAN}9)${NC} Pasarguard Node"
     echo -e "${CYAN}10)${NC} Enable Root Login"
     echo -e "${CYAN}11)${NC} Change DNS"
-    echo -e "${CYAN}12)${NC} Waterwall Tunnel"
+    echo -e "${CYAN}12)${NC} Waterwall Tunnel (New)"
     echo -e "${CYAN}0)${NC} Exit"
     echo ""
     echo -e "${YELLOW}===========================================${NC}"
