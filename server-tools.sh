@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION="0.3.9"
+VERSION="0.4.0"
 SERVER_IP=$(hostname -I | awk '{print $1}')
 
 # Colors
@@ -308,45 +308,57 @@ function setup_firewall() {
 function optimize_network() {
   local CONF="${SYSCTL_CONF:-/etc/sysctl.conf}"
   echo -e "\n${YELLOW}[*] Optimizing Network...${NC}"
-  local keys=(
-    net.ipv4.tcp_syncookies
-    net.core.default_qdisc
-    net.ipv4.tcp_congestion_control
-    net.ipv4.tcp_max_syn_backlog
-    net.core.somaxconn
-    net.core.netdev_max_backlog
-    net.ipv4.tcp_fastopen
-    net.ipv4.tcp_tw_reuse
-    net.ipv4.tcp_mtu_probing
-    net.ipv4.tcp_slow_start_after_idle
-    net.ipv4.tcp_keepalive_time
-    net.ipv4.tcp_keepalive_intvl
-    net.ipv4.tcp_keepalive_probes
+  # key=value  (values are chosen for a tunnel/proxy server with ~100 users, see notes in the changelog)
+  local settings=(
+    "net.ipv4.tcp_syncookies=1"
+    "net.core.default_qdisc=fq"
+    "net.ipv4.tcp_congestion_control=bbr"
+    "net.ipv4.tcp_max_syn_backlog=8192"
+    "net.core.somaxconn=16384"
+    "net.core.netdev_max_backlog=16384"
+    "net.ipv4.tcp_fastopen=3"
+    "net.ipv4.tcp_tw_reuse=1"
+    "net.ipv4.tcp_mtu_probing=1"
+    "net.ipv4.tcp_slow_start_after_idle=0"
+    "net.ipv4.tcp_keepalive_time=30"
+    "net.ipv4.tcp_keepalive_intvl=5"
+    "net.ipv4.tcp_keepalive_probes=3"
+    "net.ipv4.tcp_notsent_lowat=131072"
+    "net.ipv4.tcp_fin_timeout=15"
+    "net.core.rmem_max=67108864"
+    "net.core.wmem_max=67108864"
+    "net.ipv4.tcp_rmem=4096 87380 67108864"
+    "net.ipv4.tcp_wmem=4096 65536 67108864"
   )
+  local item key val
   touch "$CONF"
   # remove any previous entry of these keys (old script, manual edits), then add the fresh block
-  for key in "${keys[@]}"; do
+  sed -i '/^# --- Server Tools: network optimize ---$/d' "$CONF"
+  for item in "${settings[@]}"; do
+    key="${item%%=*}"
     sed -i "/^[[:space:]]*${key//./\\.}[[:space:]]*=/d" "$CONF"
   done
-  cat >> "$CONF" <<EOF
-
-net.ipv4.tcp_syncookies = 1
-net.core.default_qdisc = fq
-net.ipv4.tcp_congestion_control = bbr
-net.ipv4.tcp_max_syn_backlog = 4096
-net.core.somaxconn = 8192
-net.core.netdev_max_backlog = 4096
-net.ipv4.tcp_fastopen = 3
-net.ipv4.tcp_tw_reuse = 1
-net.ipv4.tcp_mtu_probing = 1
-net.ipv4.tcp_slow_start_after_idle = 0
-net.ipv4.tcp_keepalive_time = 30
-net.ipv4.tcp_keepalive_intvl = 5
-net.ipv4.tcp_keepalive_probes = 3
-EOF
+  {
+    echo ""
+    echo "# --- Server Tools: network optimize ---"
+    for item in "${settings[@]}"; do echo "${item%%=*} = ${item#*=}"; done
+  } >> "$CONF"
   modprobe tcp_bbr 2>/dev/null || true
-  sysctl -p "$CONF" || echo -e "${RED}[!] sysctl reported an error (some key may be unsupported on this kernel)${NC}"
-  echo -e "${GREEN}[✓] Network Optimized${NC}"
+  sysctl -p "$CONF" >/dev/null 2>&1 || echo -e "${RED}[!] sysctl reported an error for some key (checking below)${NC}"
+  # verify what the kernel really accepted (OpenVZ/LXC VPS may refuse some keys)
+  local bad=0 cur want
+  for item in "${settings[@]}"; do
+    key="${item%%=*}"; want=$(echo "${item#*=}" | tr -s "[:space:]" " " | sed "s/ *$//")
+    cur=$(sysctl -n "$key" 2>/dev/null | tr -s "[:space:]" " " | sed "s/ *$//")
+    if [ "$cur" != "$want" ]; then
+      echo -e "${RED}[!] $key = ${cur:-n/a}  (wanted $want)${NC}"; bad=$((bad+1))
+    fi
+  done
+  if [ "$bad" -eq 0 ]; then
+    echo -e "${GREEN}[✓] Network Optimized (${#settings[@]} settings applied and verified)${NC}"
+  else
+    echo -e "${YELLOW}[!] $bad setting(s) not applied (kernel/VPS refused them); the rest are active${NC}"
+  fi
   sleep 1
 }
 
@@ -1362,6 +1374,241 @@ function waterwall_menu() {
   done
 }
 
+# ======================= MTU Test + MSS Clamp =======================
+# NOTE: mtu_search / mss_helper_text / mss_install_local / mss_remove_local are self-contained
+# (no script variables) because they are also sent to the other server over ssh.
+
+# Largest packet size (MTU) that passes with DF set. Prints a number, or FAIL if ICMP does not work at all.
+function mtu_search() {
+  local target="$1" lo=548 hi=1472 mid best=0
+  mtu_try() { ping -n -M do -c 2 -i 0.2 -W 2 -s "$1" "$target" </dev/null >/dev/null 2>&1; }
+  if ! mtu_try "$lo"; then echo "FAIL"; return 1; fi
+  best=$lo; lo=$((lo+1))
+  while [ "$lo" -le "$hi" ]; do
+    mid=$(( (lo+hi)/2 ))
+    if mtu_try "$mid"; then best=$mid; lo=$((mid+1)); else hi=$((mid-1)); fi
+  done
+  echo $((best+28))
+}
+
+function mss_helper_text() {
+cat <<'HEOF'
+#!/bin/sh
+# Server Tools - MSS clamp helper (apply at boot / clear)
+CONF=/etc/server-tools-mss.conf
+[ -f "$CONF" ] && . "$CONF"
+clear_rules() {
+  iptables -t mangle -S POSTROUTING 2>/dev/null | grep -- 'server-tools-mss' | sed 's/^-A /-D /' | while read -r r; do iptables -t mangle $r 2>/dev/null; done
+}
+case "$1" in
+  apply)
+    [ -n "$MSS" ] || exit 1
+    clear_rules
+    # only lowers the MSS (never raises a smaller one); falls back to the plain rule if xt_tcpmss is missing
+    iptables -t mangle -A POSTROUTING -p tcp --tcp-flags SYN,RST SYN -m tcpmss --mss "$((MSS+1)):65535" -m comment --comment server-tools-mss -j TCPMSS --set-mss "$MSS" 2>/dev/null \
+      || iptables -t mangle -A POSTROUTING -p tcp --tcp-flags SYN,RST SYN -m comment --comment server-tools-mss -j TCPMSS --set-mss "$MSS" || exit 1
+    if [ -n "$IFACE" ] && [ -n "$IFMTU" ]; then ip link set dev "$IFACE" mtu "$IFMTU" || exit 1; fi
+    ;;
+  clear)
+    clear_rules
+    if [ -n "$IFACE" ] && [ -n "$ORIG_MTU" ]; then ip link set dev "$IFACE" mtu "$ORIG_MTU" 2>/dev/null; fi
+    ;;
+esac
+exit 0
+HEOF
+}
+
+# mss_install_local MSS [IFACE|auto] [IFACE_MTU]
+function mss_install_local() {
+  local mss="$1" iface="${2:-}" ifmtu="${3:-}" orig=""
+  local conf=/etc/server-tools-mss.conf helper=/usr/local/sbin/server-tools-mss unit=/etc/systemd/system/server-tools-mss.service
+  if ! command -v iptables >/dev/null 2>&1; then apt-get install -y iptables >/dev/null 2>&1 || { echo "iptables is not installed and could not be installed"; return 1; }; fi
+  if [ -n "$ifmtu" ]; then
+    if [ "$iface" = "auto" ]; then iface=$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1); exit}}'); fi
+    [ -n "$iface" ] || { echo "could not detect the network interface"; return 1; }
+    # keep the very first original MTU if we already changed this interface before
+    if [ -f "$conf" ]; then orig=$(. "$conf"; [ "$IFACE" = "$iface" ] && echo "$ORIG_MTU"); fi
+    [ -n "$orig" ] || orig=$(cat "/sys/class/net/$iface/mtu" 2>/dev/null)
+  else
+    iface=""
+  fi
+  { echo "MSS=$mss"; echo "IFACE=$iface"; echo "IFMTU=$ifmtu"; echo "ORIG_MTU=$orig"; } > "$conf"
+  mss_helper_text > "$helper"; chmod +x "$helper"
+  cat > "$unit" <<UEOF
+[Unit]
+Description=Server Tools MSS clamp
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=$helper apply
+ExecStop=$helper clear
+
+[Install]
+WantedBy=multi-user.target
+UEOF
+  systemctl daemon-reload >/dev/null 2>&1 || true
+  systemctl enable server-tools-mss >/dev/null 2>&1 || true
+  "$helper" apply || { echo "applying the iptables rule failed"; return 1; }
+  if iptables -t mangle -S POSTROUTING 2>/dev/null | grep -q 'server-tools-mss'; then
+    echo "OK: MSS clamp $mss active$( [ -n "$ifmtu" ] && echo ", $iface MTU = $ifmtu" ) (persistent after reboot)"
+  else
+    echo "rule not found after applying"; return 1
+  fi
+}
+
+function mss_remove_local() {
+  local helper=/usr/local/sbin/server-tools-mss
+  [ -x "$helper" ] && "$helper" clear
+  systemctl disable server-tools-mss >/dev/null 2>&1 || true
+  rm -f /etc/systemd/system/server-tools-mss.service /etc/server-tools-mss.conf "$helper"
+  systemctl daemon-reload >/dev/null 2>&1 || true
+  echo "OK: MSS clamp removed (interface MTU restored if it was changed by this tool)"
+}
+
+function mss_status() {
+  echo -e "\n${YELLOW}[*] Current state${NC}"
+  if [ -f /etc/server-tools-mss.conf ]; then
+    echo -e "${CYAN}Saved config:${NC}"; sed 's/^/   /' /etc/server-tools-mss.conf
+  else
+    echo "   (no clamp configured by this tool)"
+  fi
+  echo -e "${CYAN}iptables TCPMSS rules (mangle/POSTROUTING):${NC}"
+  iptables -t mangle -S POSTROUTING 2>/dev/null | grep TCPMSS | sed 's/^/   /' || true
+  local ifc; ifc=$(ip route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1); exit}}')
+  [ -n "$ifc" ] && echo -e "${CYAN}Interface $ifc MTU:${NC} $(cat /sys/class/net/$ifc/mtu 2>/dev/null)"
+}
+
+# ssh helper: uses one shared connection (password asked only once) when it could be opened
+MTU_CTL=""
+function mtu_ssh() { # mtu_ssh user port host  (command text read from stdin)
+  local o=(-p "$2" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10)
+  [ -S "$MTU_CTL" ] && o+=(-o ControlPath="$MTU_CTL" -o ControlMaster=no)
+  ssh "${o[@]}" "$1@$3" "bash -s"
+}
+
+function mtu_test_and_apply() {
+  local R_IP R_PORT R_USER in
+  echo -e "\n${YELLOW}[*] MTU test between this server and another server${NC}"
+  echo -e "${CYAN}This server: ${SERVER_IP}${NC}"
+  while true; do
+    read -r -p "$(echo -e "${YELLOW}Other server IP: ${NC}")" R_IP
+    ww_valid_ip "$R_IP" && break
+    echo -e "${RED}Invalid IP${NC}"
+  done
+  read -r -p "$(echo -e "${YELLOW}Other server SSH port [22]: ${NC}")" R_PORT; R_PORT="${R_PORT:-22}"
+  [[ "$R_PORT" =~ ^[0-9]+$ ]] && [ "$R_PORT" -ge 1 ] && [ "$R_PORT" -le 65535 ] || { echo -e "${RED}Invalid port${NC}"; sleep 1; return; }
+  read -r -p "$(echo -e "${YELLOW}Other server SSH user [root]: ${NC}")" R_USER; R_USER="${R_USER:-root}"
+
+  # open one shared ssh connection (asks the password once)
+  MTU_CTL="/tmp/st-mtu-ssh-$$"
+  echo -e "${YELLOW}[*] Connecting to $R_USER@$R_IP (needed for the reverse test)...${NC}"
+  if ssh -p "$R_PORT" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 -o ControlMaster=yes -o ControlPath="$MTU_CTL" -o ControlPersist=600 -MNf "$R_USER@$R_IP"; then
+    :
+  else
+    MTU_CTL=""
+    echo -e "${RED}[!] ssh connection failed; only the direct test is possible.${NC}"
+  fi
+
+  echo -e "${YELLOW}[*] Test 1/2: this server -> $R_IP (direct) ...${NC}"
+  local fwd rev
+  fwd=$(mtu_search "$R_IP" | tail -n1)
+  echo -e "    result: ${CYAN}${fwd}${NC}"
+
+  rev="FAIL"
+  if [ -n "$MTU_CTL" ]; then
+    echo -e "${YELLOW}[*] Test 2/2: $R_IP -> this server (reverse) ...${NC}"
+    rev=$( { declare -f mtu_search; echo "mtu_search '$SERVER_IP'"; } | mtu_ssh "$R_USER" "$R_PORT" "$R_IP" 2>/dev/null | tail -n1 )
+    [[ "$rev" =~ ^[0-9]+$ ]] || rev="FAIL"
+    echo -e "    result: ${CYAN}${rev}${NC}"
+  fi
+
+  local mtu=""
+  if [[ "$fwd" =~ ^[0-9]+$ ]] && [[ "$rev" =~ ^[0-9]+$ ]]; then
+    mtu=$(( fwd < rev ? fwd : rev ))
+  elif [[ "$fwd" =~ ^[0-9]+$ ]]; then
+    mtu="$fwd"; echo -e "${YELLOW}[!] Reverse test unavailable; using the direct result only.${NC}"
+  elif [[ "$rev" =~ ^[0-9]+$ ]]; then
+    mtu="$rev"; echo -e "${YELLOW}[!] Direct test failed; using the reverse result only.${NC}"
+  fi
+
+  local mss
+  if [ -n "$mtu" ]; then
+    mss=$((mtu-40))
+    echo ""
+    echo -e "${CYAN}  Direct  (this -> other): ${fwd}${NC}"
+    echo -e "${CYAN}  Reverse (other -> this): ${rev}${NC}"
+    echo -e "${GREEN}  Path MTU = ${mtu}  ->  suitable MSS = ${mss}${NC}"
+  else
+    echo -e "${RED}[!] ICMP ping did not work in either direction, so the MTU cannot be measured.${NC}"
+    echo -e "${YELLOW}    Safe values: 1360 (common), 1280 (very conservative).${NC}"
+    mss=""
+  fi
+
+  read -r -p "$(echo -e "${YELLOW}Set MSS ${mss:+[${mss}]}? Enter = ${mss:+yes}, type another number, n = cancel: ${NC}")" in
+  case "$in" in
+    n|N) echo "Cancelled."; mtu_cleanup_ssh; sleep 1; return ;;
+    "") [ -n "$mss" ] || { echo "No value."; mtu_cleanup_ssh; sleep 1; return; } ;;
+    *) mss="$in" ;;
+  esac
+  if ! [[ "$mss" =~ ^[0-9]+$ ]] || [ "$mss" -lt 500 ] || [ "$mss" -gt 1460 ]; then
+    echo -e "${RED}Invalid MSS (allowed 500-1460)${NC}"; mtu_cleanup_ssh; sleep 1; return
+  fi
+
+  local ifmtu=""
+  read -r -p "$(echo -e "${YELLOW}Also set the interface MTU to $((mss+40)) on this server? [y/N]: ${NC}")" in
+  [[ "$in" =~ ^[yY]$ ]] && ifmtu=$((mss+40))
+
+  echo -e "${YELLOW}[*] Applying on this server...${NC}"
+  if mss_install_local "$mss" auto "$ifmtu"; then echo -e "${GREEN}[✓] This server done${NC}"; else echo -e "${RED}[!] Failed on this server${NC}"; fi
+
+  if [ -n "$MTU_CTL" ]; then
+    read -r -p "$(echo -e "${YELLOW}Apply the same on $R_IP as well? (each side clamps its own outgoing packets) [Y/n]: ${NC}")" in
+    if [[ ! "$in" =~ ^[nN]$ ]]; then
+      local rcmd="mss_install_local '$mss' auto '$ifmtu'"
+      [ -z "$ifmtu" ] && rcmd="mss_install_local '$mss'"
+      if { declare -f mss_helper_text mss_install_local; echo "$rcmd"; } | mtu_ssh "$R_USER" "$R_PORT" "$R_IP"; then
+        echo -e "${GREEN}[✓] $R_IP done${NC}"
+      else
+        echo -e "${RED}[!] Failed on $R_IP${NC}"
+      fi
+    fi
+  fi
+  mtu_cleanup_ssh
+  read -n 1 -s -r -p $'\033[1;35m\n[✓] Done. Press any key to return\033[0m'
+}
+
+function mtu_cleanup_ssh() {
+  [ -S "$MTU_CTL" ] && ssh -O exit -o ControlPath="$MTU_CTL" x >/dev/null 2>&1
+  MTU_CTL=""
+}
+
+function mtu_tool_menu() {
+  while true; do
+    clear
+    echo -e "${YELLOW}========== MTU Test + MSS Clamp ==========${NC}"
+    echo -e "${CYAN}1)${NC} Test MTU between 2 servers (both directions) and apply"
+    echo -e "${CYAN}2)${NC} Show current MSS / MTU state"
+    echo -e "${CYAN}3)${NC} Set MSS manually (this server only)"
+    echo -e "${CYAN}4)${NC} Remove MSS clamp / restore MTU (this server)"
+    echo -e "${CYAN}0)${NC} Back"
+    echo ""
+    read -r -p "$(echo -e "${YELLOW}Choice: ${NC}")" c
+    case $c in
+      1) mtu_test_and_apply ;;
+      2) mss_status; read -n 1 -s -r -p $'\033[1;35m\nPress any key to return\033[0m' ;;
+      3) local v; read -r -p "MSS (500-1460): " v
+         if [[ "$v" =~ ^[0-9]+$ ]] && [ "$v" -ge 500 ] && [ "$v" -le 1460 ]; then mss_install_local "$v"; else echo -e "${RED}Invalid${NC}"; fi
+         read -n 1 -s -r -p $'\033[1;35m\nPress any key to return\033[0m' ;;
+      4) mss_remove_local; read -n 1 -s -r -p $'\033[1;35m\nPress any key to return\033[0m' ;;
+      0) return ;;
+      *) echo "Invalid option"; sleep 1 ;;
+    esac
+  done
+}
+
 # --- Main Menu ---
 function main_menu() {
   while true; do
@@ -1385,6 +1632,7 @@ function main_menu() {
     echo -e "${CYAN}10)${NC} Enable Root Login"
     echo -e "${CYAN}11)${NC} Change DNS"
     echo -e "${CYAN}12)${NC} Waterwall Tunnel (New)"
+    echo -e "${CYAN}13)${NC} MTU Test + MSS Clamp"
     echo -e "${CYAN}0)${NC} Exit"
     echo ""
     echo -e "${YELLOW}===========================================${NC}"
@@ -1405,6 +1653,7 @@ function main_menu() {
       10) enable_root_login ;;
       11) change_dns ;;
       12) waterwall_menu ;;
+      13) mtu_tool_menu ;;
       0) exit 0 ;;
       *) echo "Invalid option"; sleep 1 ;;
     esac
