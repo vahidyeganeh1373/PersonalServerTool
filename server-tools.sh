@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION="0.4.1"
+VERSION="0.3.9"
 SERVER_IP=$(hostname -I | awk '{print $1}')
 
 # Colors
@@ -1482,6 +1482,7 @@ exit 0
 HEOF
 }
 
+# MSS = MTU - 52 (20 IP + 20 TCP + 12 timestamp); interface MTU = MSS + 52 = the measured path MTU
 # mss_install_local MSS [IFACE|auto] [IFACE_MTU]
 function mss_install_local() {
   local mss="$1" iface="${2:-}" ifmtu="${3:-}" orig=""
@@ -1582,11 +1583,11 @@ function mtu_test_and_apply() {
   fi
 
   if [ -n "$mtu" ]; then
-    mss=$((mtu-40))
+    mss=$((mtu-52))
     echo ""
     echo -e "${CYAN}  ${SERVER_IP} -> ${R_IP} : ${fwd}${NC}"
     echo -e "${CYAN}  ${R_IP} -> ${SERVER_IP} : ${rev}${NC}"
-    echo -e "${GREEN}  Suitable MTU = ${mtu}   (MSS = ${mss})${NC}"
+    echo -e "${GREEN}  Suitable MTU = ${mtu}   (MSS = ${mss} = MTU - 52: 40 header + 12 TCP timestamp)${NC}"
   else
     echo -e "${RED}[!] ICMP ping did not work in either direction, so the MTU cannot be measured.${NC}"
     echo -e "${YELLOW}    Safe values: 1360 (common), 1280 (very conservative).${NC}"
@@ -1603,8 +1604,8 @@ function mtu_test_and_apply() {
     echo -e "${RED}Invalid MSS (allowed 500-1460)${NC}"; sleep 1; return
   fi
   local ifmtu=""
-  read -r -p "$(echo -e "${YELLOW}Also set the interface MTU to $((mss+40)) on this server? [y/N]: ${NC}")" in
-  [[ "$in" =~ ^[yY]$ ]] && ifmtu=$((mss+40))
+  read -r -p "$(echo -e "${YELLOW}Also set the interface MTU to $((mss+52)) on this server? [y/N]: ${NC}")" in
+  [[ "$in" =~ ^[yY]$ ]] && ifmtu=$((mss+52))
 
   echo -e "${YELLOW}[*] Applying on this server...${NC}"
   if mss_install_local "$mss" auto "$ifmtu"; then echo -e "${GREEN}[✓] Done on this server${NC}"; else echo -e "${RED}[!] Failed on this server${NC}"; fi
