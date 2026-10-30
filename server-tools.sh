@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION="0.3.9"
+VERSION="0.4.1"
 SERVER_IP=$(hostname -I | awk '{print $1}')
 
 # Colors
@@ -1409,6 +1409,12 @@ function mtu_search() {
   echo "  -- verification at the final size ($((best+28))):" >&2
   mtu_try "$best" 10 || true
   [ "${MTU_LAST_GOT:-0}" -lt 8 ] && echo "  [!] packet loss at the final size: $((10-MTU_LAST_GOT))/10 lost" >&2
+  local ifc ifm
+  ifc=$(ip route get "$target" 2>/dev/null | awk '{for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1); exit}}')
+  ifm=$(cat "/sys/class/net/$ifc/mtu" 2>/dev/null)
+  if [ -n "$ifm" ] && [ $((best+28)) -ge "$ifm" ]; then
+    echo "  [i] the result equals this server's interface MTU ($ifm): ping cannot send bigger packets than that, so the real path may allow more." >&2
+  fi
   echo $((best+28))
 }
 
