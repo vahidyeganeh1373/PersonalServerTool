@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION="0.4.1"
+VERSION="0.3.9"
 SERVER_IP=$(hostname -I | awk '{print $1}')
 
 # Colors
@@ -1539,92 +1539,48 @@ function mss_status() {
   [ -n "$ifc" ] && echo -e "${CYAN}Interface $ifc MTU:${NC} $(cat /sys/class/net/$ifc/mtu 2>/dev/null)"
 }
 
-# ssh helper: uses one shared connection (password asked only once) when it could be opened
-MTU_CTL=""
-function mtu_ssh() { # mtu_ssh user port host  (command text read from stdin)
-  local o=(-p "$2" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10)
-  [ -S "$MTU_CTL" ] && o+=(-o ControlPath="$MTU_CTL" -o ControlMaster=no)
-  ssh "${o[@]}" "$1@$3" "bash -s"
-}
-
 function mtu_test_and_apply() {
-  local R_IP R_PORT R_USER in MODE fwd rev mtu mss
-  echo -e "\n${YELLOW}[*] MTU test between this server and another server${NC}"
-  echo -e "${CYAN}This server: ${SERVER_IP}${NC}"
+  local R_IP in ROLE role fwd rev mtu mss R_PORT="${MTU_PORT:-5201}"
+  echo -e "\n${YELLOW}[*] MTU test between 2 servers${NC}"
+  command -v python3 >/dev/null 2>&1 || { echo -e "${RED}python3 is required (apt-get install -y python3)${NC}"; sleep 2; return; }
   while true; do
     read -r -p "$(echo -e "${YELLOW}Other server IP: ${NC}")" R_IP
     ww_valid_ip "$R_IP" && break
     echo -e "${RED}Invalid IP${NC}"
   done
-  echo -e "${CYAN}How do the two servers talk to each other?${NC}"
-  echo -e "  ${CYAN}1)${NC} SSH: run this option on ONE server only; it asks the OTHER server's password once and runs both directions itself"
-  echo -e "  ${CYAN}2)${NC} Wait/Connect (no password): run this option on BOTH servers; one waits, the other connects, then the test starts"
-  read -r -p "$(echo -e "${YELLOW}Choice [1]: ${NC}")" MODE; MODE="${MODE:-1}"
-  MTU_CTL=""
-  fwd="FAIL"; rev="FAIL"
-
-  if [ "$MODE" = "2" ]; then
-    command -v python3 >/dev/null 2>&1 || { echo -e "${RED}python3 is required for this mode (apt-get install -y python3)${NC}"; sleep 2; return; }
-    local ROLE
-    echo -e "  ${CYAN}1)${NC} This server WAITS for the other side (start this one first)"
-    echo -e "  ${CYAN}2)${NC} This server CONNECTS to the other side (start it second)"
-    read -r -p "$(echo -e "${YELLOW}Role [1]: ${NC}")" ROLE; ROLE="${ROLE:-1}"
-    read -r -p "$(echo -e "${YELLOW}Meeting TCP port [5201] (must be reachable on the waiting server): ${NC}")" R_PORT; R_PORT="${R_PORT:-5201}"
-    [[ "$R_PORT" =~ ^[0-9]+$ ]] && [ "$R_PORT" -ge 1 ] && [ "$R_PORT" -le 65535 ] || { echo -e "${RED}Invalid port${NC}"; sleep 1; return; }
-    local role=listen; [ "$ROLE" = "2" ] && role=connect
-    if [ "$role" = "listen" ]; then
-      echo -e "${YELLOW}[*] Waiting for the other side ($R_IP) on port $R_PORT ... (up to 10 minutes) - now start option 13 on the other server and choose CONNECT${NC}"
-    else
-      echo -e "${YELLOW}[*] Connecting to $R_IP:$R_PORT ... (retries for up to 10 minutes; start the WAIT side if you have not)${NC}"
-    fi
-    if [ "$(mtu_exchange "$role" "$R_IP" "$R_PORT" ready)" != "ready" ]; then
-      echo -e "${RED}[!] The other side did not show up (check IP, port, firewall).${NC}"; sleep 2; return
-    fi
-    echo -e "${GREEN}[✓] Both sides are connected. Starting the test (both servers test at the same time).${NC}"
-    echo -e "\n${YELLOW}[*] Test: ${SERVER_IP} -> ${R_IP}${NC}"
-    fwd=$(mtu_search "$R_IP" | tail -n1)
-    echo -e "    result: ${CYAN}${fwd}${NC}"
-    echo -e "${YELLOW}[*] Exchanging results with the other side ...${NC}"
-    rev=$(mtu_exchange "$role" "$R_IP" "$R_PORT" "$fwd")
-    [[ "$rev" =~ ^[0-9]+$ ]] || rev="FAIL"
-    echo -e "    other side measured ${R_IP} -> ${SERVER_IP}: ${CYAN}${rev}${NC}"
-  else
-    read -r -p "$(echo -e "${YELLOW}Other server SSH port [22]: ${NC}")" R_PORT; R_PORT="${R_PORT:-22}"
-    [[ "$R_PORT" =~ ^[0-9]+$ ]] && [ "$R_PORT" -ge 1 ] && [ "$R_PORT" -le 65535 ] || { echo -e "${RED}Invalid port${NC}"; sleep 1; return; }
-    read -r -p "$(echo -e "${YELLOW}Other server SSH user [root]: ${NC}")" R_USER; R_USER="${R_USER:-root}"
-    MTU_CTL="/tmp/st-mtu-ssh-$$"
-    echo -e "${YELLOW}[*] Connecting to $R_USER@$R_IP (password asked once)...${NC}"
-    if ! ssh -p "$R_PORT" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 -o ControlMaster=yes -o ControlPath="$MTU_CTL" -o ControlPersist=600 -MNf "$R_USER@$R_IP"; then
-      MTU_CTL=""
-      echo -e "${RED}[!] ssh connection failed; only the direct test is possible.${NC}"
-    fi
-    echo -e "\n${YELLOW}[*] Test 1/2: ${SERVER_IP} -> ${R_IP}  (run here)${NC}"
-    fwd=$(mtu_search "$R_IP" | tail -n1)
-    echo -e "    result: ${CYAN}${fwd}${NC}"
-    if [ -n "$MTU_CTL" ]; then
-      echo -e "\n${YELLOW}[*] Test 2/2: ${R_IP} -> ${SERVER_IP}  (run on the other server over ssh)${NC}"
-      rev=$( { declare -f mtu_search; echo 'mtu_search "${SSH_CONNECTION%% *}"'; } | mtu_ssh "$R_USER" "$R_PORT" "$R_IP" | tail -n1 )
-      [[ "$rev" =~ ^[0-9]+$ ]] || rev="FAIL"
-      echo -e "    result: ${CYAN}${rev}${NC}"
-    fi
+  echo -e "  ${CYAN}1)${NC} Direct"
+  echo -e "  ${CYAN}2)${NC} Reverse"
+  read -r -p "$(echo -e "${YELLOW}Choice: ${NC}")" ROLE
+  case "$ROLE" in
+    1) role=listen;  echo -e "${YELLOW}[*] Waiting for the other server ($R_IP) ... run this option there and choose Reverse${NC}" ;;
+    2) role=connect; echo -e "${YELLOW}[*] Connecting to the other server ($R_IP) ... run this option there and choose Direct${NC}" ;;
+    *) echo "Invalid option"; sleep 1; return ;;
+  esac
+  if [ "$(mtu_exchange "$role" "$R_IP" "$R_PORT" ready)" != "ready" ]; then
+    echo -e "${RED}[!] The other server did not connect (check the IP and that TCP port $R_PORT is open on the Direct server).${NC}"; sleep 2; return
   fi
+  echo -e "${GREEN}[✓] Connected. Testing ${SERVER_IP} -> ${R_IP}${NC}"
+  fwd=$(mtu_search "$R_IP" | tail -n1)
+  echo -e "    result: ${CYAN}${fwd}${NC}"
+  echo -e "${YELLOW}[*] Getting the result of the other server ...${NC}"
+  rev=$(mtu_exchange "$role" "$R_IP" "$R_PORT" "$fwd")
+  [[ "$rev" =~ ^[0-9]+$ ]] || rev="FAIL"
 
   mtu=""
   if [[ "$fwd" =~ ^[0-9]+$ ]] && [[ "$rev" =~ ^[0-9]+$ ]]; then
     mtu=$(( fwd < rev ? fwd : rev ))
   elif [[ "$fwd" =~ ^[0-9]+$ ]]; then
-    mtu="$fwd"; echo -e "${YELLOW}[!] Reverse result unavailable; using the direct result only.${NC}"
+    mtu="$fwd"; echo -e "${YELLOW}[!] Other server's result unavailable; using this server's result only.${NC}"
   elif [[ "$rev" =~ ^[0-9]+$ ]]; then
-    mtu="$rev"; echo -e "${YELLOW}[!] Direct test failed; using the reverse result only.${NC}"
+    mtu="$rev"; echo -e "${YELLOW}[!] This server's test failed; using the other server's result only.${NC}"
   fi
 
   if [ -n "$mtu" ]; then
     mss=$((mtu-40))
     echo ""
-    echo -e "${CYAN}  Direct  (${SERVER_IP} -> ${R_IP}): ${fwd}${NC}"
-    echo -e "${CYAN}  Reverse (${R_IP} -> ${SERVER_IP}): ${rev}${NC}"
-    echo -e "${CYAN}  (MTU is a limit, not an average: the SMALLEST of the two directions must be used)${NC}"
-    echo -e "${GREEN}  Path MTU = ${mtu}  ->  suitable MSS = ${mss}${NC}"
+    echo -e "${CYAN}  ${SERVER_IP} -> ${R_IP} : ${fwd}${NC}"
+    echo -e "${CYAN}  ${R_IP} -> ${SERVER_IP} : ${rev}${NC}"
+    echo -e "${GREEN}  Suitable MTU = ${mtu}   (MSS = ${mss})${NC}"
   else
     echo -e "${RED}[!] ICMP ping did not work in either direction, so the MTU cannot be measured.${NC}"
     echo -e "${YELLOW}    Safe values: 1360 (common), 1280 (very conservative).${NC}"
@@ -1633,49 +1589,28 @@ function mtu_test_and_apply() {
 
   read -r -p "$(echo -e "${YELLOW}Set MSS ${mss:+[${mss}]}? Enter = ${mss:+yes}, type another number, n = cancel: ${NC}")" in
   case "$in" in
-    n|N) echo "Cancelled."; mtu_cleanup_ssh; sleep 1; return ;;
-    "") [ -n "$mss" ] || { echo "No value."; mtu_cleanup_ssh; sleep 1; return; } ;;
+    n|N) echo "Cancelled."; sleep 1; return ;;
+    "") [ -n "$mss" ] || { echo "No value."; sleep 1; return; } ;;
     *) mss="$in" ;;
   esac
   if ! [[ "$mss" =~ ^[0-9]+$ ]] || [ "$mss" -lt 500 ] || [ "$mss" -gt 1460 ]; then
-    echo -e "${RED}Invalid MSS (allowed 500-1460)${NC}"; mtu_cleanup_ssh; sleep 1; return
+    echo -e "${RED}Invalid MSS (allowed 500-1460)${NC}"; sleep 1; return
   fi
-
   local ifmtu=""
   read -r -p "$(echo -e "${YELLOW}Also set the interface MTU to $((mss+40)) on this server? [y/N]: ${NC}")" in
   [[ "$in" =~ ^[yY]$ ]] && ifmtu=$((mss+40))
 
   echo -e "${YELLOW}[*] Applying on this server...${NC}"
-  if mss_install_local "$mss" auto "$ifmtu"; then echo -e "${GREEN}[✓] This server done${NC}"; else echo -e "${RED}[!] Failed on this server${NC}"; fi
-
-  if [ "$MODE" = "2" ]; then
-    echo -e "${YELLOW}[i] Run the same confirmation on the OTHER server too (it shows the same numbers).${NC}"
-  elif [ -n "$MTU_CTL" ]; then
-    read -r -p "$(echo -e "${YELLOW}Apply the same on $R_IP as well? (each side clamps its own outgoing packets) [Y/n]: ${NC}")" in
-    if [[ ! "$in" =~ ^[nN]$ ]]; then
-      local rcmd="mss_install_local '$mss'"
-      [ -n "$ifmtu" ] && rcmd="mss_install_local '$mss' auto '$ifmtu'"
-      if { declare -f mss_helper_text mss_install_local; echo "$rcmd"; } | mtu_ssh "$R_USER" "$R_PORT" "$R_IP"; then
-        echo -e "${GREEN}[✓] $R_IP done${NC}"
-      else
-        echo -e "${RED}[!] Failed on $R_IP${NC}"
-      fi
-    fi
-  fi
-  mtu_cleanup_ssh
-  read -n 1 -s -r -p $'\033[1;35m\n[✓] Done. Press any key to return\033[0m'
-}
-
-function mtu_cleanup_ssh() {
-  [ -S "$MTU_CTL" ] && ssh -O exit -o ControlPath="$MTU_CTL" x >/dev/null 2>&1
-  MTU_CTL=""
+  if mss_install_local "$mss" auto "$ifmtu"; then echo -e "${GREEN}[✓] Done on this server${NC}"; else echo -e "${RED}[!] Failed on this server${NC}"; fi
+  echo -e "${YELLOW}[i] Confirm the same on the other server too (it shows the same numbers).${NC}"
+  read -n 1 -s -r -p $'\033[1;35m\n[✓] Press any key to return\033[0m'
 }
 
 function mtu_tool_menu() {
   while true; do
     clear
     echo -e "${YELLOW}========== MTU Test + MSS Clamp ==========${NC}"
-    echo -e "${CYAN}1)${NC} Test MTU between 2 servers (both directions) and apply"
+    echo -e "${CYAN}1)${NC} Test MTU between 2 servers (Direct + Reverse) and apply"
     echo -e "${CYAN}2)${NC} Show current MSS / MTU state"
     echo -e "${CYAN}3)${NC} Set MSS manually (this server only)"
     echo -e "${CYAN}4)${NC} Remove MSS clamp / restore MTU (this server)"
