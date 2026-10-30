@@ -1,5 +1,5 @@
 #!/bin/bash
-VERSION="0.4.0"
+VERSION="0.4.1"
 SERVER_IP=$(hostname -I | awk '{print $1}')
 
 # Colors
@@ -1378,17 +1378,75 @@ function waterwall_menu() {
 # NOTE: mtu_search / mss_helper_text / mss_install_local / mss_remove_local are self-contained
 # (no script variables) because they are also sent to the other server over ssh.
 
-# Largest packet size (MTU) that passes with DF set. Prints a number, or FAIL if ICMP does not work at all.
+# Largest packet size (MTU) that passes with DF set. Every ping is shown live (stderr),
+# the final number (or FAIL if ICMP does not work at all) is printed on stdout.
+# About 50-60 probes: binary search (5 packets per step) + 10 packets to measure loss at the final size.
 function mtu_search() {
-  local target="$1" lo=548 hi=1472 mid best=0
-  mtu_try() { ping -n -M do -c 2 -i 0.2 -W 2 -s "$1" "$target" </dev/null >/dev/null 2>&1; }
-  if ! mtu_try "$lo"; then echo "FAIL"; return 1; fi
+  local target="$1" lo=548 hi=1472 mid best=0 n=5
+  # mtu_try SIZE COUNT : live output; returns 0 if at least one reply came back
+  mtu_try() {
+    local sz="$1" cnt="$2" got=0 line
+    echo "  -- packet size $((sz+28)) (payload $sz), $cnt pings:" >&2
+    while IFS= read -r line; do
+      case "$line" in
+        *"bytes from"*) got=$((got+1)); echo "       reply  time=${line##*time=}" >&2 ;;
+        *"transmitted"*|"") ;;
+        PING*|---*|rtt*|round-trip*) ;;
+        *) echo "       $line" >&2 ;;
+      esac
+    done < <(ping -n -M do -c "$cnt" -i 0.2 -W 2 -s "$sz" "$target" </dev/null 2>&1)
+    echo "       => $got/$cnt replies" >&2
+    MTU_LAST_GOT=$got
+    [ "$got" -ge 1 ]
+  }
+  echo "  target: $target   (smallest size first, then binary search)" >&2
+  if ! mtu_try "$lo" "$n"; then echo "FAIL"; return 1; fi
   best=$lo; lo=$((lo+1))
   while [ "$lo" -le "$hi" ]; do
     mid=$(( (lo+hi)/2 ))
-    if mtu_try "$mid"; then best=$mid; lo=$((mid+1)); else hi=$((mid-1)); fi
+    if mtu_try "$mid" "$n"; then best=$mid; lo=$((mid+1)); else hi=$((mid-1)); fi
   done
+  echo "  -- verification at the final size ($((best+28))):" >&2
+  mtu_try "$best" 10 || true
+  [ "${MTU_LAST_GOT:-0}" -lt 8 ] && echo "  [!] packet loss at the final size: $((10-MTU_LAST_GOT))/10 lost" >&2
   echo $((best+28))
+}
+
+# Rendezvous without ssh: one side waits (listen), the other connects. Prints the peer's message.
+# mtu_exchange listen|connect PEER_IP PORT MESSAGE
+function mtu_exchange() {
+  python3 - "$@" <<'PYEOF'
+import socket, sys, time, re
+role, peer, port, msg = sys.argv[1], sys.argv[2], int(sys.argv[3]), sys.argv[4]
+deadline = time.time() + 600
+if role == "listen":
+    s = socket.socket(); s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.bind(("0.0.0.0", port)); s.listen(5)
+    while time.time() < deadline:
+        s.settimeout(max(1, deadline - time.time()))
+        try:
+            c, a = s.accept()
+        except socket.timeout:
+            break
+        if a[0] != peer:
+            sys.stderr.write("  (ignored a connection from %s - not the IP you entered)\n" % a[0]); c.close(); continue
+        try:
+            c.settimeout(15); d = c.recv(256).decode().strip(); c.sendall((msg + "\n").encode()); c.close()
+            if re.fullmatch(r"[A-Za-z0-9]{1,16}", d): print(d); sys.exit(0)
+        except Exception:
+            continue
+    sys.exit(1)
+else:
+    while time.time() < deadline:
+        try:
+            c = socket.create_connection((peer, port), timeout=5); c.settimeout(15)
+            c.sendall((msg + "\n").encode()); d = c.recv(256).decode().strip(); c.close()
+            if re.fullmatch(r"[A-Za-z0-9]{1,16}", d): print(d); sys.exit(0)
+        except Exception:
+            pass
+        time.sleep(2)
+    sys.exit(1)
+PYEOF
 }
 
 function mss_helper_text() {
@@ -1490,7 +1548,7 @@ function mtu_ssh() { # mtu_ssh user port host  (command text read from stdin)
 }
 
 function mtu_test_and_apply() {
-  local R_IP R_PORT R_USER in
+  local R_IP R_PORT R_USER in MODE fwd rev mtu mss
   echo -e "\n${YELLOW}[*] MTU test between this server and another server${NC}"
   echo -e "${CYAN}This server: ${SERVER_IP}${NC}"
   while true; do
@@ -1498,48 +1556,74 @@ function mtu_test_and_apply() {
     ww_valid_ip "$R_IP" && break
     echo -e "${RED}Invalid IP${NC}"
   done
-  read -r -p "$(echo -e "${YELLOW}Other server SSH port [22]: ${NC}")" R_PORT; R_PORT="${R_PORT:-22}"
-  [[ "$R_PORT" =~ ^[0-9]+$ ]] && [ "$R_PORT" -ge 1 ] && [ "$R_PORT" -le 65535 ] || { echo -e "${RED}Invalid port${NC}"; sleep 1; return; }
-  read -r -p "$(echo -e "${YELLOW}Other server SSH user [root]: ${NC}")" R_USER; R_USER="${R_USER:-root}"
+  echo -e "${CYAN}How do the two servers talk to each other?${NC}"
+  echo -e "  ${CYAN}1)${NC} SSH: run this option on ONE server only; it asks the OTHER server's password once and runs both directions itself"
+  echo -e "  ${CYAN}2)${NC} Wait/Connect (no password): run this option on BOTH servers; one waits, the other connects, then the test starts"
+  read -r -p "$(echo -e "${YELLOW}Choice [1]: ${NC}")" MODE; MODE="${MODE:-1}"
+  MTU_CTL=""
+  fwd="FAIL"; rev="FAIL"
 
-  # open one shared ssh connection (asks the password once)
-  MTU_CTL="/tmp/st-mtu-ssh-$$"
-  echo -e "${YELLOW}[*] Connecting to $R_USER@$R_IP (needed for the reverse test)...${NC}"
-  if ssh -p "$R_PORT" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 -o ControlMaster=yes -o ControlPath="$MTU_CTL" -o ControlPersist=600 -MNf "$R_USER@$R_IP"; then
-    :
-  else
-    MTU_CTL=""
-    echo -e "${RED}[!] ssh connection failed; only the direct test is possible.${NC}"
-  fi
-
-  echo -e "${YELLOW}[*] Test 1/2: this server -> $R_IP (direct) ...${NC}"
-  local fwd rev
-  fwd=$(mtu_search "$R_IP" | tail -n1)
-  echo -e "    result: ${CYAN}${fwd}${NC}"
-
-  rev="FAIL"
-  if [ -n "$MTU_CTL" ]; then
-    echo -e "${YELLOW}[*] Test 2/2: $R_IP -> this server (reverse) ...${NC}"
-    rev=$( { declare -f mtu_search; echo "mtu_search '$SERVER_IP'"; } | mtu_ssh "$R_USER" "$R_PORT" "$R_IP" 2>/dev/null | tail -n1 )
+  if [ "$MODE" = "2" ]; then
+    command -v python3 >/dev/null 2>&1 || { echo -e "${RED}python3 is required for this mode (apt-get install -y python3)${NC}"; sleep 2; return; }
+    local ROLE
+    echo -e "  ${CYAN}1)${NC} This server WAITS for the other side (start this one first)"
+    echo -e "  ${CYAN}2)${NC} This server CONNECTS to the other side (start it second)"
+    read -r -p "$(echo -e "${YELLOW}Role [1]: ${NC}")" ROLE; ROLE="${ROLE:-1}"
+    read -r -p "$(echo -e "${YELLOW}Meeting TCP port [5201] (must be reachable on the waiting server): ${NC}")" R_PORT; R_PORT="${R_PORT:-5201}"
+    [[ "$R_PORT" =~ ^[0-9]+$ ]] && [ "$R_PORT" -ge 1 ] && [ "$R_PORT" -le 65535 ] || { echo -e "${RED}Invalid port${NC}"; sleep 1; return; }
+    local role=listen; [ "$ROLE" = "2" ] && role=connect
+    if [ "$role" = "listen" ]; then
+      echo -e "${YELLOW}[*] Waiting for the other side ($R_IP) on port $R_PORT ... (up to 10 minutes) - now start option 13 on the other server and choose CONNECT${NC}"
+    else
+      echo -e "${YELLOW}[*] Connecting to $R_IP:$R_PORT ... (retries for up to 10 minutes; start the WAIT side if you have not)${NC}"
+    fi
+    if [ "$(mtu_exchange "$role" "$R_IP" "$R_PORT" ready)" != "ready" ]; then
+      echo -e "${RED}[!] The other side did not show up (check IP, port, firewall).${NC}"; sleep 2; return
+    fi
+    echo -e "${GREEN}[✓] Both sides are connected. Starting the test (both servers test at the same time).${NC}"
+    echo -e "\n${YELLOW}[*] Test: ${SERVER_IP} -> ${R_IP}${NC}"
+    fwd=$(mtu_search "$R_IP" | tail -n1)
+    echo -e "    result: ${CYAN}${fwd}${NC}"
+    echo -e "${YELLOW}[*] Exchanging results with the other side ...${NC}"
+    rev=$(mtu_exchange "$role" "$R_IP" "$R_PORT" "$fwd")
     [[ "$rev" =~ ^[0-9]+$ ]] || rev="FAIL"
-    echo -e "    result: ${CYAN}${rev}${NC}"
+    echo -e "    other side measured ${R_IP} -> ${SERVER_IP}: ${CYAN}${rev}${NC}"
+  else
+    read -r -p "$(echo -e "${YELLOW}Other server SSH port [22]: ${NC}")" R_PORT; R_PORT="${R_PORT:-22}"
+    [[ "$R_PORT" =~ ^[0-9]+$ ]] && [ "$R_PORT" -ge 1 ] && [ "$R_PORT" -le 65535 ] || { echo -e "${RED}Invalid port${NC}"; sleep 1; return; }
+    read -r -p "$(echo -e "${YELLOW}Other server SSH user [root]: ${NC}")" R_USER; R_USER="${R_USER:-root}"
+    MTU_CTL="/tmp/st-mtu-ssh-$$"
+    echo -e "${YELLOW}[*] Connecting to $R_USER@$R_IP (password asked once)...${NC}"
+    if ! ssh -p "$R_PORT" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 -o ControlMaster=yes -o ControlPath="$MTU_CTL" -o ControlPersist=600 -MNf "$R_USER@$R_IP"; then
+      MTU_CTL=""
+      echo -e "${RED}[!] ssh connection failed; only the direct test is possible.${NC}"
+    fi
+    echo -e "\n${YELLOW}[*] Test 1/2: ${SERVER_IP} -> ${R_IP}  (run here)${NC}"
+    fwd=$(mtu_search "$R_IP" | tail -n1)
+    echo -e "    result: ${CYAN}${fwd}${NC}"
+    if [ -n "$MTU_CTL" ]; then
+      echo -e "\n${YELLOW}[*] Test 2/2: ${R_IP} -> ${SERVER_IP}  (run on the other server over ssh)${NC}"
+      rev=$( { declare -f mtu_search; echo 'mtu_search "${SSH_CONNECTION%% *}"'; } | mtu_ssh "$R_USER" "$R_PORT" "$R_IP" | tail -n1 )
+      [[ "$rev" =~ ^[0-9]+$ ]] || rev="FAIL"
+      echo -e "    result: ${CYAN}${rev}${NC}"
+    fi
   fi
 
-  local mtu=""
+  mtu=""
   if [[ "$fwd" =~ ^[0-9]+$ ]] && [[ "$rev" =~ ^[0-9]+$ ]]; then
     mtu=$(( fwd < rev ? fwd : rev ))
   elif [[ "$fwd" =~ ^[0-9]+$ ]]; then
-    mtu="$fwd"; echo -e "${YELLOW}[!] Reverse test unavailable; using the direct result only.${NC}"
+    mtu="$fwd"; echo -e "${YELLOW}[!] Reverse result unavailable; using the direct result only.${NC}"
   elif [[ "$rev" =~ ^[0-9]+$ ]]; then
     mtu="$rev"; echo -e "${YELLOW}[!] Direct test failed; using the reverse result only.${NC}"
   fi
 
-  local mss
   if [ -n "$mtu" ]; then
     mss=$((mtu-40))
     echo ""
-    echo -e "${CYAN}  Direct  (this -> other): ${fwd}${NC}"
-    echo -e "${CYAN}  Reverse (other -> this): ${rev}${NC}"
+    echo -e "${CYAN}  Direct  (${SERVER_IP} -> ${R_IP}): ${fwd}${NC}"
+    echo -e "${CYAN}  Reverse (${R_IP} -> ${SERVER_IP}): ${rev}${NC}"
+    echo -e "${CYAN}  (MTU is a limit, not an average: the SMALLEST of the two directions must be used)${NC}"
     echo -e "${GREEN}  Path MTU = ${mtu}  ->  suitable MSS = ${mss}${NC}"
   else
     echo -e "${RED}[!] ICMP ping did not work in either direction, so the MTU cannot be measured.${NC}"
@@ -1564,11 +1648,13 @@ function mtu_test_and_apply() {
   echo -e "${YELLOW}[*] Applying on this server...${NC}"
   if mss_install_local "$mss" auto "$ifmtu"; then echo -e "${GREEN}[✓] This server done${NC}"; else echo -e "${RED}[!] Failed on this server${NC}"; fi
 
-  if [ -n "$MTU_CTL" ]; then
+  if [ "$MODE" = "2" ]; then
+    echo -e "${YELLOW}[i] Run the same confirmation on the OTHER server too (it shows the same numbers).${NC}"
+  elif [ -n "$MTU_CTL" ]; then
     read -r -p "$(echo -e "${YELLOW}Apply the same on $R_IP as well? (each side clamps its own outgoing packets) [Y/n]: ${NC}")" in
     if [[ ! "$in" =~ ^[nN]$ ]]; then
-      local rcmd="mss_install_local '$mss' auto '$ifmtu'"
-      [ -z "$ifmtu" ] && rcmd="mss_install_local '$mss'"
+      local rcmd="mss_install_local '$mss'"
+      [ -n "$ifmtu" ] && rcmd="mss_install_local '$mss' auto '$ifmtu'"
       if { declare -f mss_helper_text mss_install_local; echo "$rcmd"; } | mtu_ssh "$R_USER" "$R_PORT" "$R_IP"; then
         echo -e "${GREEN}[✓] $R_IP done${NC}"
       else
