@@ -310,25 +310,28 @@ function optimize_network() {
   echo -e "\n${YELLOW}[*] Optimizing Network...${NC}"
   # key=value  (values are chosen for a tunnel/proxy server with ~100 users, see notes in the changelog)
   local settings=(
+    "net.ipv4.tcp_no_metrics_save=1"
     "net.ipv4.tcp_syncookies=1"
     "net.core.default_qdisc=fq"
     "net.ipv4.tcp_congestion_control=bbr"
     "net.ipv4.tcp_max_syn_backlog=8192"
     "net.core.somaxconn=16384"
     "net.core.netdev_max_backlog=16384"
-    "net.ipv4.tcp_fastopen=3"
+    "net.ipv4.tcp_fastopen=0"
     "net.ipv4.tcp_tw_reuse=1"
     "net.ipv4.tcp_mtu_probing=1"
     "net.ipv4.tcp_slow_start_after_idle=0"
     "net.ipv4.tcp_keepalive_time=30"
-    "net.ipv4.tcp_keepalive_intvl=5"
-    "net.ipv4.tcp_keepalive_probes=3"
+    "net.ipv4.tcp_keepalive_intvl=10"
+    "net.ipv4.tcp_keepalive_probes=6"
     "net.ipv4.tcp_notsent_lowat=131072"
     "net.ipv4.tcp_fin_timeout=15"
-    "net.core.rmem_max=67108864"
-    "net.core.wmem_max=67108864"
-    "net.ipv4.tcp_rmem=4096 87380 67108864"
-    "net.ipv4.tcp_wmem=4096 65536 67108864"
+    "net.core.rmem_max=33554432"
+    "net.core.wmem_max=33554432"
+    "net.ipv4.tcp_rmem=4096 131072 33554432"
+    "net.ipv4.tcp_wmem=4096 65536 33554432"
+    "net.netfilter.nf_conntrack_max=262144"
+    "net.netfilter.nf_conntrack_tcp_timeout_established=7200"
   )
   local item key val
   touch "$CONF"
@@ -344,6 +347,7 @@ function optimize_network() {
     for item in "${settings[@]}"; do echo "${item%%=*} = ${item#*=}"; done
   } >> "$CONF"
   modprobe tcp_bbr 2>/dev/null || true
+  modprobe nf_conntrack 2>/dev/null || true   # the nf_conntrack_* keys only exist when this module is loaded
   sysctl -p "$CONF" >/dev/null 2>&1 || echo -e "${RED}[!] sysctl reported an error for some key (checking below)${NC}"
   # verify what the kernel really accepted (OpenVZ/LXC VPS may refuse some keys)
   local bad=0 cur want
@@ -1101,6 +1105,178 @@ WWTPL
 }
 WWTPL
   ;;
+  mhr-iran) cat <<'WWTPL'
+{
+  "name": "iran-reverse-reality-mux-halfduplex",
+  "author": "waterwall-user",
+  "config-version": 1,
+  "core-minimum-version": 0,
+  "nodes": [
+    {
+      "name": "users_inbound",
+      "type": "TcpListener",
+      "settings": {
+        "address": "0.0.0.0",
+        "port": __CONFIG_PORT__,
+        "nodelay": true
+      },
+      "next": "bridge_users"
+    },
+    {
+      "name": "bridge_users",
+      "type": "Bridge",
+      "settings": {
+        "pair": "bridge_reverse"
+      }
+    },
+    {
+      "name": "bridge_reverse",
+      "type": "Bridge",
+      "settings": {
+        "pair": "bridge_users"
+      }
+    },
+    {
+      "name": "reverse_server",
+      "type": "ReverseServer",
+      "settings": {
+        "reverse-secret-length": 640,
+        "reverse-secret": "__SECRET__"
+      },
+      "next": "bridge_reverse"
+    },
+    {
+      "name": "reality_server",
+      "type": "RealityServer",
+      "settings": {
+        "destination": "visitor_site",
+        "password": "__REALITY_PASS__",
+        "algorithm": "chacha20-poly1305",
+        "sniffing-attempts": 8
+      },
+      "next": "halfduplex_server"
+    },
+    {
+      "name": "halfduplex_server",
+      "type": "HalfDuplexServer",
+      "settings": {},
+      "next": "mux_server"
+    },
+    {
+      "name": "mux_server",
+      "type": "MuxServer",
+      "settings": {
+        "active-child-idle-timeout-ms": 3600000
+      },
+      "next": "reverse_server"
+    },
+    {
+      "name": "visitor_site",
+      "type": "TcpConnector",
+      "settings": {
+        "address": "__SNI__",
+        "port": 443,
+        "nodelay": true
+      }
+    },
+    {
+      "name": "peers_inbound",
+      "type": "TcpListener",
+      "settings": {
+        "address": "0.0.0.0",
+        "port": __TUNNEL_PORT__,
+        "nodelay": true,
+        "whitelist": [
+          "__FOREIGN_IP__/32"
+        ]
+      },
+      "next": "reality_server"
+    }
+  ]
+}
+WWTPL
+  ;;
+  mhr-foreign) cat <<'WWTPL'
+{
+  "name": "foreign-reverse-reality-mux-halfduplex",
+  "author": "waterwall-user",
+  "config-version": 1,
+  "core-minimum-version": 0,
+  "nodes": [
+    {
+      "name": "local_service",
+      "type": "TcpConnector",
+      "settings": {
+        "address": "127.0.0.1",
+        "port": __CONFIG_PORT__,
+        "nodelay": true
+      }
+    },
+    {
+      "name": "bridge_local",
+      "type": "Bridge",
+      "settings": {
+        "pair": "bridge_reverse"
+      },
+      "next": "local_service"
+    },
+    {
+      "name": "bridge_reverse",
+      "type": "Bridge",
+      "settings": {
+        "pair": "bridge_local"
+      },
+      "next": "reverse_client"
+    },
+    {
+      "name": "reverse_client",
+      "type": "ReverseClient",
+      "settings": {
+        "minimum-unused": 64,
+        "reverse-secret-length": 640,
+        "reverse-secret": "__SECRET__"
+      },
+      "next": "mux_client"
+    },
+    {
+      "name": "mux_client",
+      "type": "MuxClient",
+      "settings": {
+        "mode": "fixed-connections-count",
+        "per-worker-connections-count": 4
+      },
+      "next": "halfduplex_client"
+    },
+    {
+      "name": "halfduplex_client",
+      "type": "HalfDuplexClient",
+      "settings": {},
+      "next": "reality_client"
+    },
+    {
+      "name": "reality_client",
+      "type": "RealityClient",
+      "settings": {
+        "sni": "__SNI__",
+        "verify": true,
+        "password": "__REALITY_PASS__",
+        "algorithm": "chacha20-poly1305"
+      },
+      "next": "to_iran"
+    },
+    {
+      "name": "to_iran",
+      "type": "TcpConnector",
+      "settings": {
+        "address": "__IRAN_IP__",
+        "port": __TUNNEL_PORT__,
+        "nodelay": true
+      }
+    }
+  ]
+}
+WWTPL
+  ;;
   esac
 }
 
@@ -1222,14 +1398,15 @@ function ww_install() {
   echo -e "${YELLOW}1. Reverse TCP${NC}"
   echo -e "${YELLOW}2. Reverse TCP Reality${NC}"
   echo -e "${YELLOW}3. Reverse TCP HalfDuplex${NC}"
+  echo -e "${YELLOW}4. Reverse TCP Reality Mux HalfDuplex${NC}"
   echo ""
   local T KIND
   while true; do
-    read -p "$(echo -e "${YELLOW}Choice [1-3]: ${NC}")" T
-    [[ "$T" =~ ^[123]$ ]] && break
+    read -p "$(echo -e "${YELLOW}Choice [1-4]: ${NC}")" T
+    [[ "$T" =~ ^[1234]$ ]] && break
     echo -e "${RED}Invalid option${NC}"
   done
-  case $T in 1) KIND=raw ;; 2) KIND=reality ;; 3) KIND=hd ;; esac
+  case $T in 1) KIND=raw ;; 2) KIND=reality ;; 3) KIND=hd ;; 4) KIND=mhr ;; esac
   echo ""
   echo -e "${GREEN} ┇${NC}"; echo -e "${GREEN} ▼${NC}"; echo ""
   local SIDE_N SIDE
@@ -1255,7 +1432,7 @@ function ww_install() {
   echo ""
   ww_ask_secret "Tunnel Secret (same on both sides)" W_SECRET
   echo ""
-  if [ "$KIND" = "reality" ]; then
+  if [ "$KIND" = "reality" ] || [ "$KIND" = "mhr" ]; then
     ww_ask_secret "Reality Password (same on both sides)" W_REALITY_PASS
     echo ""
     while true; do
@@ -1604,8 +1781,15 @@ function mtu_test_and_apply() {
     echo -e "${RED}Invalid MSS (allowed 500-1460)${NC}"; sleep 1; return
   fi
   local ifmtu=""
-  read -r -p "$(echo -e "${YELLOW}Also set the interface MTU to $((mss+52)) on this server? [y/N]: ${NC}")" in
-  [[ "$in" =~ ^[yY]$ ]] && ifmtu=$((mss+52))
+  read -r -p "$(echo -e "${YELLOW}Interface MTU for this server [$((mss+52))]: Enter = $((mss+52)), type another number, n = do not change: ${NC}")" in
+  case "$in" in
+    n|N) ifmtu="" ;;
+    "")  ifmtu=$((mss+52)) ;;
+    *)   ifmtu="$in" ;;
+  esac
+  if [ -n "$ifmtu" ] && { ! [[ "$ifmtu" =~ ^[0-9]+$ ]] || [ "$ifmtu" -lt 576 ] || [ "$ifmtu" -gt 1500 ]; }; then
+    echo -e "${RED}Invalid interface MTU (allowed 576-1500)${NC}"; sleep 1; return
+  fi
 
   echo -e "${YELLOW}[*] Applying on this server...${NC}"
   if mss_install_local "$mss" auto "$ifmtu"; then echo -e "${GREEN}[✓] Done on this server${NC}"; else echo -e "${RED}[!] Failed on this server${NC}"; fi
@@ -1619,7 +1803,7 @@ function mtu_tool_menu() {
     echo -e "${YELLOW}========== MTU Test + MSS Clamp ==========${NC}"
     echo -e "${CYAN}1)${NC} Test MTU between 2 servers (Direct + Reverse) and apply"
     echo -e "${CYAN}2)${NC} Show current MSS / MTU state"
-    echo -e "${CYAN}3)${NC} Set MSS manually (this server only)"
+    echo -e "${CYAN}3)${NC} Set MSS and interface MTU manually (this server only)"
     echo -e "${CYAN}4)${NC} Remove MSS clamp / restore MTU (this server)"
     echo -e "${CYAN}0)${NC} Back"
     echo ""
@@ -1628,7 +1812,12 @@ function mtu_tool_menu() {
       1) mtu_test_and_apply ;;
       2) mss_status; read -n 1 -s -r -p $'\033[1;35m\nPress any key to return\033[0m' ;;
       3) local v; read -r -p "MSS (500-1460): " v
-         if [[ "$v" =~ ^[0-9]+$ ]] && [ "$v" -ge 500 ] && [ "$v" -le 1460 ]; then mss_install_local "$v"; else echo -e "${RED}Invalid${NC}"; fi
+         if [[ "$v" =~ ^[0-9]+$ ]] && [ "$v" -ge 500 ] && [ "$v" -le 1460 ]; then
+           local m; read -r -p "Interface MTU (Enter = do not change, 576-1500): " m
+           if [ -z "$m" ]; then mss_install_local "$v"
+           elif [[ "$m" =~ ^[0-9]+$ ]] && [ "$m" -ge 576 ] && [ "$m" -le 1500 ]; then mss_install_local "$v" auto "$m"
+           else echo -e "${RED}Invalid MTU${NC}"; fi
+         else echo -e "${RED}Invalid${NC}"; fi
          read -n 1 -s -r -p $'\033[1;35m\nPress any key to return\033[0m' ;;
       4) mss_remove_local; read -n 1 -s -r -p $'\033[1;35m\nPress any key to return\033[0m' ;;
       0) return ;;
